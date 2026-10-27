@@ -1,0 +1,57 @@
+{
+ "1": {
+  "stage_reached": "place",
+  "success": 1,
+  "recovery": "n/a",
+  "miss_direction": "none",
+  "miss_cm": 0,
+  "loop_hz": 13.9,
+  "place_s": 18.0,
+  "jerk": 1.9,
+  "notes": "attempts=2; held=3.0s; src=rollout_eval_diffusion_100000_20261019_185327:ep0; auto"
+ },
+ "2": {
+  "stage_reached": "place",
+  "success": 1,
+  "recovery": "n/a",
+  "miss_direction": "none",
+  "miss_cm": 0,
+  "loop_hz": 15.9,
+  "place_s": 20.5,
+  "jerk": 2.4,
+  "notes": "attempts=2; held=4.0s; src=rollout_eval_diffusion_100000_20261019_185327:ep1; auto"
+ },
+ "3": {
+  "stage_reached": "place",
+  "success": 1,
+  "recovery": "n/a",
+  "miss_direction": "none",
+  "miss_cm": 0,
+  "loop_hz": 13.5,
+  "place_s": 19.7,
+  "jerk": 1.4,
+  "notes": "attempts=2; held=3.4s; src=rollout_eval_diffusion_100000_20261019_185327:ep2; auto"
+ },
+ "4": {
+  "stage_reached": "lift",
+  "success": 0,
+  "recovery": "n/a",
+  "miss_direction": "none",
+  "miss_cm": 0,
+  "loop_hz": 18.4,
+  "place_s": "",
+  "jerk": 6.2,
+  "notes": "attempts=2; held=3.2s; check: cube hidden at end; src=rollout_eval_diffusion_100000_20261019_185327:ep3; auto"
+ },
+ "5": {
+  "stage_reached": "reach",
+  "success": 0,
+  "recovery": "no",
+  "miss_direction": "none",
+  "miss_cm": 0.5,
+  "loop_hz": 18.6,
+  "place_s": "",
+  "jerk": 6.3,
+  "notes": "attempts=3; held=0.0s; src=rollout_eval_diffusion_100000_20261019_185327:ep4; auto"
+ }
+}

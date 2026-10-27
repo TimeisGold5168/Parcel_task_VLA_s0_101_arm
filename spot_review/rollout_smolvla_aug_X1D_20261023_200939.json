@@ -1,0 +1,47 @@
+{
+ "1": {
+  "stage_reached": "place",
+  "task_success": 1,
+  "pick_success": 1,
+  "recovery": "n/a",
+  "miss_direction": "none",
+  "miss_cm": 0,
+  "cam_ref_ep": 130,
+  "cam_rot_deg": -0.25,
+  "cam_shift_px": 1.1,
+  "loop_hz": 14.4,
+  "place_s": 19.5,
+  "jerk": 5.4,
+  "notes": "attempts=1; held=3.4s; src=rollout_smolvla_aug_X1D_20261023_200939:ep0; auto"
+ },
+ "2": {
+  "stage_reached": "grasp",
+  "task_success": 0,
+  "pick_success": 0,
+  "recovery": "no",
+  "miss_direction": "toward_square",
+  "miss_cm": 8.8,
+  "cam_ref_ep": 130,
+  "cam_rot_deg": -0.25,
+  "cam_shift_px": 1.1,
+  "loop_hz": 16.9,
+  "place_s": "",
+  "jerk": 9.1,
+  "notes": "attempts=3; held=0.6s; check: far miss, cm is rough; src=rollout_smolvla_aug_X1D_20261023_200939:ep1; auto"
+ },
+ "3": {
+  "stage_reached": "lift",
+  "task_success": 0,
+  "pick_success": 1,
+  "recovery": "no",
+  "miss_direction": "toward_square",
+  "miss_cm": 2.2,
+  "cam_ref_ep": 130,
+  "cam_rot_deg": -0.25,
+  "cam_shift_px": 1.1,
+  "loop_hz": 16.9,
+  "place_s": "",
+  "jerk": 8.3,
+  "notes": "attempts=2; held=2.4s; src=rollout_smolvla_aug_X1D_20261023_200939:ep2; auto"
+ }
+}

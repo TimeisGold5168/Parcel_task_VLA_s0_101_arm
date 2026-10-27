@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+
+# robot run media and logs (large); keep the speed compilations
+*.mp4
+*.mkv
+*.avi
+*.npz
+*.npy
+mount_check/
+!bsp/runs/showcase_*.mp4

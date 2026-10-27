@@ -1,0 +1,32 @@
+[
+ {
+  "speed": 1.0,
+  "max_step": 6.0,
+  "replan_frac": 0.5,
+  "ddim": 5,
+  "blend": 0.2,
+  "fixed_noise": false,
+  "n_ticks": 567,
+  "n_plans": 22,
+  "plan_ms": 113.76679201864384,
+  "plan_p95": 207.3486617300659,
+  "margin_min": -0.05196597510948777,
+  "late_plans": 1,
+  "hold_pct": 0.5291005291005291,
+  "clamp_pct": 0.0,
+  "clamp_joint": "pan",
+  "seam_clamp": 0.0,
+  "seam_p95": 10.447773569213219,
+  "shift_med": 1.9575941571965814,
+  "lag_max": 22.68773657735136,
+  "late_pct": 0.0,
+  "dt_p99_ms": 22.875601612031463,
+  "wait_p99_ms": 0.003998065367341048,
+  "vel_p99": 135.8192082690859,
+  "vel_joint": "grip",
+  "rev_per_s": 0.6183945601004266,
+  "success": 1,
+  "done_s": 11.8,
+  "file": "sweep_diffusion_SQ_20261026_144927/x1/ep0"
+ }
+]

@@ -1,0 +1,23 @@
+time,spot,model,dataset,ref_episode,rot_deg,dx_px,dy_px,ok
+2026-10-21 21:20:16,X1,act151,rollout_act151_X1_20261021_212029,130,-0.32,-1.6,-0.8,True
+2026-10-21 21:22:51,X1,diffusion,rollout_diffusion_X1_20261021_212309,130,-0.27,-1.6,-0.9,True
+2026-10-21 21:25:37,X1,smolvla,rollout_smolvla_X1_20261021_212600,130,-0.38,-1.4,-0.6,True
+2026-10-21 21:28:12,X1,smolvla,rollout_smolvla_X1D_20261021_212840,130,-0.32,-1.4,-0.9,True
+2026-10-23 20:05:47,X1,smolvla_aug,rollout_smolvla_aug_X1_20261023_200613,130,-0.31,-1.1,-0.6,True
+2026-10-23 20:09:18,X1,smolvla_aug,rollout_smolvla_aug_X1D_20261023_200939,130,-0.25,-0.9,-0.6,True
+2026-10-23 20:17:11,X1,act151,rollout_act151_X1_20261023_201727,130,-0.22,-0.9,-0.8,True
+2026-10-23 21:08:53,SQ,act151,rollout_act151_SQ_20261023_210911,0,-0.38,0.2,0.2,True
+2026-10-23 21:47:38,CFGA1,act151,rollout_act151_CFGA1_20261023_214752,130,0.32,-0.2,0.1,True
+2026-10-23 21:51:45,CFGA2,act151,rollout_act151_CFGA2_20261023_215218,130,0.3,-0.3,0.2,True
+2026-10-23 21:56:19,CFGA3,act151,rollout_act151_CFGA3_20261023_215631,130,0.33,-0.3,0.3,True
+2026-10-23 22:00:41,CFGD1,diffusion,rollout_diffusion_CFGD1_20261023_220107,130,0.31,-0.3,0.3,True
+2026-10-23 22:05:36,CFGD2,diffusion,rollout_diffusion_CFGD2_20261023_220628,130,0.3,-0.3,0.6,True
+2026-10-23 22:10:15,CFGS1,smolvla,rollout_smolvla_CFGS1_20261023_221042,130,0.21,-0.3,0.6,True
+2026-10-23 22:14:33,CFGS2,smolvla,rollout_smolvla_CFGS2_20261023_221502,130,0.24,-0.3,0.6,True
+2026-10-24 17:18:17,SQ,act151,rollout_act151_SQ_20261024_171830,0,0.07,1.4,0.3,True
+2026-10-24 17:24:49,SQ,act_aug,rollout_act_aug_SQ_20261024_172500,0,0.32,0.9,0.6,True
+2026-10-24 17:31:01,SQ,diffusion,rollout_diffusion_SQ_20261024_173112,0,0.22,0.8,0.6,True
+2026-10-24 17:40:00,SQ,smolvla,rollout_smolvla_SQ_20261024_174021,0,-0.01,1.0,0.4,True
+2026-10-24 17:46:07,SQD,smolvla,rollout_smolvla_SQD_20261024_175929,0,0.23,1.2,0.5,True
+2026-10-24 18:04:48,SQD,smolvla,rollout_smolvla_SQD_20261024_180518,0,0.28,1.0,0.5,True
+2026-10-24 18:12:54,SQDUO,smolvla,rollout_smolvla_SQDUO_20261024_181315,0,0.2,1.0,0.5,True

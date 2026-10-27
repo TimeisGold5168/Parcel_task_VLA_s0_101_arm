@@ -1,0 +1,10 @@
+model,checkpoint,spot,trial,stage_reached,task_success,pick_success,recovery,miss_direction,miss_cm,cam_ref_ep,cam_rot_deg,cam_shift_px,notes,act_mode
+act151,050000,SQ,1,reach,0,0,no,left,3.2,0,-0.38,0.3,attempts=2; held=0.0s; src=rollout_act151_SQ_20261023_210911:ep0; auto,"temporal_ensemble_coeff=0.01,n_action_steps=1"
+act151,050000,SQ,2,place,1,1,n/a,none,0,0,-0.38,0.3,attempts=2; held=3.2s; src=rollout_act151_SQ_20261023_210911:ep1; auto,"temporal_ensemble_coeff=0.01,n_action_steps=1"
+act151,050000,SQ,3,reach,0,0,no,none,0.7,0,-0.38,0.3,attempts=1; held=0.0s; src=rollout_act151_SQ_20261023_210911:ep2; auto,"temporal_ensemble_coeff=0.01,n_action_steps=1"
+act151,050000,X1,1,reach,0,0,no,toward_square,2.2,130,-0.32,1.8,attempts=4; held=0.0s; src=rollout_act151_X1_20261021_212029:ep0; auto,"temporal_ensemble_coeff=0.01,n_action_steps=1"
+act151,050000,X1,2,reach,0,0,no,toward_square,2.4,130,-0.32,1.8,attempts=2; held=0.0s; src=rollout_act151_X1_20261021_212029:ep1; auto,"temporal_ensemble_coeff=0.01,n_action_steps=1"
+act151,050000,X1,3,reach,0,0,no,toward_square,2.1,130,-0.32,1.8,attempts=1; held=0.0s; src=rollout_act151_X1_20261021_212029:ep2; auto,"temporal_ensemble_coeff=0.01,n_action_steps=1"
+act151,050000,X1,4,reach,0,0,no,short,2.8,130,-0.22,1.2,attempts=1; held=0.0s; src=rollout_act151_X1_20261023_201727:ep0; auto,"temporal_ensemble_coeff=0.01,n_action_steps=1"
+act151,050000,X1,5,reach,0,0,no,short,3.1,130,-0.22,1.2,attempts=2; held=0.0s; src=rollout_act151_X1_20261023_201727:ep1; auto,"temporal_ensemble_coeff=0.01,n_action_steps=1"
+act151,050000,X1,6,none,0,0,no,toward_square,4.4,130,-0.22,1.2,attempts=1; held=0.0s; src=rollout_act151_X1_20261023_201727:ep2; auto,"temporal_ensemble_coeff=0.01,n_action_steps=1"

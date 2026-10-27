@@ -1,0 +1,36 @@
+model,checkpoint,spot,trial,config,policy_args,stage_reached,task_success,pick_success,recovery,miss_direction,miss_cm,cam_ref_ep,cam_rot_deg,cam_shift_px,loop_hz,place_s,jerk,notes
+act151,050000,CFGA1,1,ACT chunk 100 (default),,reach,0,0,no,none,1.3,130,0.32,0.2,14.0,,9.0,attempts=4; held=0.0s; src=rollout_act151_CFGA1_20261023_214752:ep0; auto
+act151,050000,CFGA1,2,ACT chunk 100 (default),,reach,0,0,no,toward_square,2.6,130,0.32,0.2,14.0,,8.3,attempts=3; held=0.0s; src=rollout_act151_CFGA1_20261023_214752:ep1; auto
+act151,050000,CFGA1,3,ACT chunk 100 (default),,reach,0,0,no,none,1.5,130,0.32,0.2,14.3,,7.9,attempts=3; held=0.0s; src=rollout_act151_CFGA1_20261023_214752:ep2; auto
+act151,050000,CFGA1,4,ACT chunk 100 (default),,reach,0,0,no,none,1.0,130,0.32,0.2,14.4,,6.7,attempts=6; held=0.0s; src=rollout_act151_CFGA1_20261023_214752:ep3; auto
+act151,050000,CFGA1,5,ACT chunk 100 (default),,reach,0,0,no,short,1.8,130,0.32,0.2,14.7,,8.7,attempts=3; held=0.0s; src=rollout_act151_CFGA1_20261023_214752:ep4; auto
+act151,050000,CFGA2,1,ACT chunk 16,--policy.n_action_steps=16,none,0,0,n/a,,,130,0.3,0.4,14.0,,6.7,attempts=0; held=0.0s; src=rollout_act151_CFGA2_20261023_215218:ep0; auto
+act151,050000,CFGA2,2,ACT chunk 16,--policy.n_action_steps=16,none,0,0,n/a,,,130,0.3,0.4,14.1,,6.7,attempts=0; held=0.0s; src=rollout_act151_CFGA2_20261023_215218:ep1; auto
+act151,050000,CFGA2,3,ACT chunk 16,--policy.n_action_steps=16,none,0,0,n/a,,,130,0.3,0.4,13.6,,5.7,attempts=0; held=0.0s; src=rollout_act151_CFGA2_20261023_215218:ep2; auto
+act151,050000,CFGA2,4,ACT chunk 16,--policy.n_action_steps=16,none,0,0,n/a,,,130,0.3,0.4,14.3,,6.9,attempts=0; held=0.0s; src=rollout_act151_CFGA2_20261023_215218:ep3; auto
+act151,050000,CFGA2,5,ACT chunk 16,--policy.n_action_steps=16,none,0,0,n/a,,,130,0.3,0.4,13.9,,6.4,attempts=0; held=0.0s; src=rollout_act151_CFGA2_20261023_215218:ep4; auto
+act151,050000,CFGA3,1,ACT temporal ensemble 0.01,--policy.n_action_steps=1 --policy.temporal_ensemble_coeff=0.01,reach,0,0,no,toward_square,3.0,130,0.33,0.4,10.2,,0.1,attempts=1; held=0.0s; src=rollout_act151_CFGA3_20261023_215631:ep0; auto
+act151,050000,CFGA3,2,ACT temporal ensemble 0.01,--policy.n_action_steps=1 --policy.temporal_ensemble_coeff=0.01,reach,0,0,no,toward_square,2.3,130,0.33,0.4,9.8,,0.1,attempts=1; held=0.0s; src=rollout_act151_CFGA3_20261023_215631:ep1; auto
+act151,050000,CFGA3,3,ACT temporal ensemble 0.01,--policy.n_action_steps=1 --policy.temporal_ensemble_coeff=0.01,none,0,0,no,toward_square,4.7,130,0.33,0.4,9.7,,0.1,attempts=1; held=0.0s; src=rollout_act151_CFGA3_20261023_215631:ep2; auto
+act151,050000,CFGA3,4,ACT temporal ensemble 0.01,--policy.n_action_steps=1 --policy.temporal_ensemble_coeff=0.01,none,0,0,no,toward_square,3.3,130,0.33,0.4,9.8,,0.1,attempts=1; held=0.0s; src=rollout_act151_CFGA3_20261023_215631:ep3; auto
+act151,050000,CFGA3,5,ACT temporal ensemble 0.01,--policy.n_action_steps=1 --policy.temporal_ensemble_coeff=0.01,none,0,0,no,toward_square,3.6,130,0.33,0.4,9.8,,0.1,attempts=1; held=0.0s; src=rollout_act151_CFGA3_20261023_215631:ep4; auto
+diffusion,100000,CFGD1,1,Diffusion n_action_steps 32 (default),,reach,0,0,no,toward_square,2.2,130,0.31,0.4,12.9,,3.4,attempts=1; held=0.0s; src=rollout_diffusion_CFGD1_20261023_220107:ep0; auto
+diffusion,100000,CFGD1,2,Diffusion n_action_steps 32 (default),,lift,0,1,n/a,none,0,130,0.31,0.4,13.7,,3.3,attempts=1; held=3.4s; src=rollout_diffusion_CFGD1_20261023_220107:ep1; auto
+diffusion,100000,CFGD1,3,Diffusion n_action_steps 32 (default),,place,1,1,n/a,none,0,130,0.31,0.4,13.8,20.2,2.8,attempts=1; held=3.0s; src=rollout_diffusion_CFGD1_20261023_220107:ep2; auto
+diffusion,100000,CFGD1,4,Diffusion n_action_steps 32 (default),,reach,0,0,no,toward_square,2.0,130,0.31,0.4,13.9,,4.2,attempts=1; held=0.0s; src=rollout_diffusion_CFGD1_20261023_220107:ep3; auto
+diffusion,100000,CFGD1,5,Diffusion n_action_steps 32 (default),,reach,0,0,no,toward_square,2.8,130,0.31,0.4,13.7,,4.3,attempts=1; held=0.0s; src=rollout_diffusion_CFGD1_20261023_220107:ep4; auto
+diffusion,100000,CFGD2,1,Diffusion n_action_steps 8,--policy.n_action_steps=8,reach,0,0,no,toward_square,1.5,130,0.3,0.7,11.3,,2.1,attempts=1; held=0.0s; src=rollout_diffusion_CFGD2_20261023_220628:ep0; auto
+diffusion,100000,CFGD2,2,Diffusion n_action_steps 8,--policy.n_action_steps=8,reach,0,0,no,toward_square,1.7,130,0.3,0.7,12.0,,2.2,attempts=1; held=0.0s; src=rollout_diffusion_CFGD2_20261023_220628:ep1; auto
+diffusion,100000,CFGD2,3,Diffusion n_action_steps 8,--policy.n_action_steps=8,reach,0,0,no,none,0.9,130,0.3,0.7,11.7,,2.4,attempts=1; held=0.0s; src=rollout_diffusion_CFGD2_20261023_220628:ep2; auto
+diffusion,100000,CFGD2,4,Diffusion n_action_steps 8,--policy.n_action_steps=8,reach,0,0,no,none,1.1,130,0.3,0.7,11.9,,2.5,attempts=1; held=0.0s; src=rollout_diffusion_CFGD2_20261023_220628:ep3; auto
+diffusion,100000,CFGD2,5,Diffusion n_action_steps 8,--policy.n_action_steps=8,place,1,1,n/a,none,0,130,0.3,0.7,11.6,26.5,2.4,attempts=1; held=3.5s; src=rollout_diffusion_CFGD2_20261023_220628:ep4; auto
+smolvla,100000,CFGS1,1,SmolVLA n_action_steps 50 (default),,reach,0,0,no,toward_square,2.1,130,0.21,0.7,11.8,,2.4,attempts=1; held=0.0s; src=rollout_smolvla_CFGS1_20261023_221042:ep0; auto
+smolvla,100000,CFGS1,2,SmolVLA n_action_steps 50 (default),,reach,0,0,no,toward_square,2.8,130,0.21,0.7,12.6,,3.2,attempts=1; held=0.0s; src=rollout_smolvla_CFGS1_20261023_221042:ep1; auto
+smolvla,100000,CFGS1,3,SmolVLA n_action_steps 50 (default),,reach,0,0,no,toward_square,1.8,130,0.21,0.7,12.5,,3.0,attempts=1; held=0.0s; src=rollout_smolvla_CFGS1_20261023_221042:ep2; auto
+smolvla,100000,CFGS1,4,SmolVLA n_action_steps 50 (default),,reach,0,0,no,toward_square,17.0,130,0.21,0.7,12.1,,2.6,"attempts=1; held=0.0s; check: far miss, cm is rough; src=rollout_smolvla_CFGS1_20261023_221042:ep3; auto"
+smolvla,100000,CFGS1,5,SmolVLA n_action_steps 50 (default),,none,0,0,no,toward_square,3.6,130,0.21,0.7,12.5,,2.8,attempts=3; held=0.0s; src=rollout_smolvla_CFGS1_20261023_221042:ep4; auto
+smolvla,100000,CFGS2,1,SmolVLA n_action_steps 10,--policy.n_action_steps=10,reach,0,0,no,right,2.9,130,0.24,0.7,9.8,,1.2,attempts=1; held=0.0s; src=rollout_smolvla_CFGS2_20261023_221502:ep0; auto
+smolvla,100000,CFGS2,2,SmolVLA n_action_steps 10,--policy.n_action_steps=10,lift,0,1,n/a,none,0,130,0.24,0.7,10.0,,1.6,attempts=1; held=2.7s; src=rollout_smolvla_CFGS2_20261023_221502:ep1; auto
+smolvla,100000,CFGS2,3,SmolVLA n_action_steps 10,--policy.n_action_steps=10,lift,0,1,n/a,none,0,130,0.24,0.7,9.7,,1.4,attempts=1; held=2.2s; src=rollout_smolvla_CFGS2_20261023_221502:ep2; auto
+smolvla,100000,CFGS2,4,SmolVLA n_action_steps 10,--policy.n_action_steps=10,lift,0,1,n/a,none,0,130,0.24,0.7,9.7,,1.5,attempts=1; held=2.9s; src=rollout_smolvla_CFGS2_20261023_221502:ep3; auto
+smolvla,100000,CFGS2,5,SmolVLA n_action_steps 10,--policy.n_action_steps=10,none,0,0,n/a,,,130,0.24,0.7,9.7,,0.9,attempts=0; held=0.0s; src=rollout_smolvla_CFGS2_20261023_221502:ep4; auto

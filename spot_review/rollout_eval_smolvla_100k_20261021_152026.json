@@ -1,0 +1,24 @@
+{
+ "1": {
+  "stage_reached": "reach",
+  "success": 0,
+  "recovery": "no",
+  "miss_direction": "toward_square",
+  "miss_cm": 6.0,
+  "loop_hz": 16.7,
+  "place_s": "",
+  "jerk": 7.0,
+  "notes": "attempts=1; held=0.0s; src=rollout_eval_smolvla_100k_20261021_152026:ep0; auto"
+ },
+ "2": {
+  "stage_reached": "lift",
+  "success": 0,
+  "recovery": "n/a",
+  "miss_direction": "none",
+  "miss_cm": 0,
+  "loop_hz": 17.4,
+  "place_s": "",
+  "jerk": 7.1,
+  "notes": "attempts=1; held=1.5s; src=rollout_eval_smolvla_100k_20261021_152026:ep1; auto"
+ }
+}

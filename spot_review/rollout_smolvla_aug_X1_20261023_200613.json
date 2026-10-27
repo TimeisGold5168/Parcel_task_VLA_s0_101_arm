@@ -1,0 +1,47 @@
+{
+ "1": {
+  "stage_reached": "reach",
+  "task_success": 0,
+  "pick_success": 0,
+  "recovery": "no",
+  "miss_direction": "toward_square",
+  "miss_cm": 2.0,
+  "cam_ref_ep": 130,
+  "cam_rot_deg": -0.31,
+  "cam_shift_px": 1.3,
+  "loop_hz": 17.0,
+  "place_s": "",
+  "jerk": 8.4,
+  "notes": "attempts=2; held=0.0s; src=rollout_smolvla_aug_X1_20261023_200613:ep0; auto"
+ },
+ "2": {
+  "stage_reached": "place",
+  "task_success": 1,
+  "pick_success": 1,
+  "recovery": "n/a",
+  "miss_direction": "none",
+  "miss_cm": 0,
+  "cam_ref_ep": 130,
+  "cam_rot_deg": -0.31,
+  "cam_shift_px": 1.3,
+  "loop_hz": 15.7,
+  "place_s": 19.1,
+  "jerk": 6.7,
+  "notes": "attempts=1; held=5.9s; src=rollout_smolvla_aug_X1_20261023_200613:ep1; auto"
+ },
+ "3": {
+  "stage_reached": "none",
+  "task_success": 0,
+  "pick_success": 0,
+  "recovery": "no",
+  "miss_direction": "toward_square",
+  "miss_cm": 3.7,
+  "cam_ref_ep": 130,
+  "cam_rot_deg": -0.31,
+  "cam_shift_px": 1.3,
+  "loop_hz": 16.9,
+  "place_s": "",
+  "jerk": 8.6,
+  "notes": "attempts=2; held=0.0s; src=rollout_smolvla_aug_X1_20261023_200613:ep2; auto"
+ }
+}

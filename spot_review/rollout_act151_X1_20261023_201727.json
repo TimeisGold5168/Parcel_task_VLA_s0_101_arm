@@ -1,0 +1,44 @@
+{
+ "1": {
+  "stage_reached": "reach",
+  "success": 0,
+  "recovery": "no",
+  "miss_direction": "short",
+  "miss_cm": 2.8,
+  "cam_ref_ep": 130,
+  "cam_rot_deg": -0.22,
+  "cam_shift_px": 1.2,
+  "loop_hz": 12.5,
+  "place_s": "",
+  "jerk": 0.3,
+  "notes": "attempts=1; held=0.0s; src=rollout_act151_X1_20261023_201727:ep0; auto"
+ },
+ "2": {
+  "stage_reached": "reach",
+  "success": 0,
+  "recovery": "no",
+  "miss_direction": "short",
+  "miss_cm": 3.1,
+  "cam_ref_ep": 130,
+  "cam_rot_deg": -0.22,
+  "cam_shift_px": 1.2,
+  "loop_hz": 13.3,
+  "place_s": "",
+  "jerk": 0.4,
+  "notes": "attempts=2; held=0.0s; src=rollout_act151_X1_20261023_201727:ep1; auto"
+ },
+ "3": {
+  "stage_reached": "none",
+  "success": 0,
+  "recovery": "no",
+  "miss_direction": "toward_square",
+  "miss_cm": 4.4,
+  "cam_ref_ep": 130,
+  "cam_rot_deg": -0.22,
+  "cam_shift_px": 1.2,
+  "loop_hz": 12.6,
+  "place_s": "",
+  "jerk": 0.2,
+  "notes": "attempts=1; held=0.0s; src=rollout_act151_X1_20261023_201727:ep2; auto"
+ }
+}

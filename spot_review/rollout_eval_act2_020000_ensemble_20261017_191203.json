@@ -1,0 +1,13 @@
+{
+ "1": {
+  "stage_reached": "none",
+  "success": 0,
+  "recovery": "no",
+  "miss_direction": "",
+  "miss_cm": "",
+  "loop_hz": 11.4,
+  "place_s": "",
+  "jerk": 0.1,
+  "notes": "attempts=1; held=0.0s; check: cube not found at start; src=rollout_eval_act2_020000_ensemble_20261017_191203:ep0; auto"
+ }
+}
