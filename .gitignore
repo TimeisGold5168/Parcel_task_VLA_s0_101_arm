@@ -9,3 +9,6 @@ __pycache__/
 *.npy
 mount_check/
 !bsp/runs/showcase_*.mp4
+*.webm
+parcel_labels/live_tests/*.csv
+approach_demo/camera_layout_v2.png

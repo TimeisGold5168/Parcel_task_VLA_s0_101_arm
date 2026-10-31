@@ -426,6 +426,75 @@ success rate at the same level as 1x is not shown yet.
 5 trials at 1x and 5 at 2x with the locked settings. Then compare
 success and completion time (claim: faster at equal success).
 
+## Parcel task preparation: ArUco labels for benchmarking
+
+The parcel task needs a score that does not depend on a person. Each
+parcel has a shipping label with a unique ArUco marker, in place of
+the QR code. The marker is for benchmarking after training, during
+inference. A script finds the marker in the front camera after each
+run. It gives the parcel ID, the parcel position and the label side:
+if the marker is visible, the label is up. The policy does not get
+the marker ID. The marker is only part of the label image, the same
+in training and in inference.
+
+### Label design
+
+![Test page: one label of each size](parcel_labels/labels_preview.jpg)
+
+- Shopee-style layout: courier header, Code 128 tracking barcode,
+  sender, recipient and order details, and an ArUco marker.
+- All names, streets, towns and postcodes are fictional (for example
+  "SpongeBob SquarePants, Conch Street, 00404 Bikini Bottom").
+  Postcodes 00xxx and 99xxx and phone numbers 6000... do not exist in
+  Malaysia.
+- Sizes: 6 x 6 cm (marker 19.5 mm), 5 x 5 cm (16.3 mm) and 4 x 4 cm
+  (13 mm). Dictionary `DICT_4X4_100`, one ID per label (IDs 0-50).
+  `labels.csv` maps each ID to its size and tracking number.
+- First design problem: a solid black header with white text was
+  found as a false marker at camera resolution. The header is now
+  black text on white. After this change, the rendered pages gave
+  0 false detections.
+- Print at 100% scale on matte paper. Each page has a 50 mm ruler to
+  check the scale.
+
+### Live camera test (front camera, 640 x 480)
+
+The full 5 cm and 4 cm sheets were put flat on the table, in the
+front camera view. `test_aruco_live.py` found the markers in each
+frame and logged them.
+
+![Live ArUco test on the front camera](parcel_labels/parcel_aruco_test_check_on_front_cam.png)
+
+Video of the live test:
+[`parcel_labels/test_check_on_front_cam_aruco.webm`](parcel_labels/test_check_on_front_cam_aruco.webm)
+(70 s).
+
+Result, sheets not moving (160 s, 4754 frames at 30 fps):
+
+| Label | Labels in view | Marker width | Found in >= 90% of frames | Found in < 50% of frames |
+|---|---|---|---|---|
+| 5 x 5 cm | 15 | about 19 px | 13 | 0 |
+| 4 x 4 cm | 24 | about 12 px | 9 | 12 |
+
+- 5 cm labels: the camera finds all of them in almost every frame.
+- 4 cm labels: about half of them fail. Markers of 11-13 px are at the
+  limit of the detector.
+- False detections: 0 while the sheets did not move; 5 in 220,000
+  detections in the full 22-minute front run. The wrist camera gave
+  21 in 34,000. All false IDs were not in `labels.csv`, so a check
+  against `labels.csv` removes them.
+- The 6 cm sheet was only in view while it moved, so this test gives
+  no detection rate for it. Its markers are larger than the 5 cm
+  markers.
+
+Decision: use 5 cm labels (or 6 cm) on the parcels for the benchmark.
+Do not use 4 cm labels with the front camera at this distance.
+
+Files: `parcel_labels/make_labels.py` (makes the label PDFs and
+`labels.csv`), `parcel_labels/test_aruco_live.py` (live test, one
+camera), `parcel_labels/parcel_labels_A4.pdf` (all labels) and
+`parcel_labels/parcel_labels_test_A4.pdf` (one label per size).
+
 ## Next steps
 
 - Parcel task (replaces the 3-colour SmolVLA dataset). It is a small
