@@ -43,9 +43,10 @@ def patch_diffusion():
         orig = getattr(md.DiffusionPolicy, name)
 
         def wrapped(self, batch, *a, _orig=orig, **kw):
-            if self.config.resize_shape is not None:
-                batch = _resize(batch, self.config.image_features,
-                                self.config.resize_shape)
+            feats = [k for k in self.config.image_features if k in batch]
+            sizes = {tuple(batch[k].shape[-2:]) for k in feats}
+            if self.config.resize_shape is not None and len(sizes) > 1:
+                batch = _resize(batch, feats, self.config.resize_shape)
             return _orig(self, batch, *a, **kw)
 
         setattr(md.DiffusionPolicy, name, wrapped)
