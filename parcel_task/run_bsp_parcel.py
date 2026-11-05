@@ -96,9 +96,23 @@ def make_robot():
                                    height=480, fps=30, fourcc="MJPG"),
     }
     cfg = SO101FollowerConfig(port=rb.PORT, id="my_follower_arm",
-                              cameras=cams)
+                              cameras=cams, num_read_retries=10)
     robot = make_robot_from_config(cfg)
-    robot.connect()
+    try:
+        robot.connect()
+    except ConnectionError as err:
+        # configure() writes with no retry; one bad status packet stops
+        # connect() after the bus and cameras are open: redo only that
+        for attempt in range(1, 4):
+            print(f"motor write failed ({err}); retry {attempt}/3")
+            time.sleep(0.5)
+            try:
+                robot.configure()
+                break
+            except ConnectionError as e:
+                err = e
+        else:
+            raise
     return robot
 
 
