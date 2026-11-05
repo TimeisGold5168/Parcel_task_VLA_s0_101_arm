@@ -1,11 +1,14 @@
-"""Run Diffusion-BSP on the parcel task (SO-101, BSP executor).
+"""Run Diffusion-BSP or SmolVLA-BSP on the parcel task (BSP executor).
 
 Uses the executor of bsp/run_bsp.py (planner thread + --hz control
 thread, wall-clock curve time) with the parcel setup:
 - cameras top (RealSense colour, 848x480), wrist and side (640x480);
-- the parcel task text; diffusion_bsp_parcel_40k;
-- patch_diffusion() (mixed camera sizes), images converted on the GPU;
-- DDIM sampling, --ddim-steps (default 10, about 0.1 s per plan).
+- the parcel task text; images converted on the GPU;
+- --model diffusion_bsp (default): diffusion_bsp_parcel_40k,
+  patch_diffusion() (mixed camera sizes), DDIM sampling,
+  --ddim-steps (default 10, about 0.1 s per plan);
+- --model smolvla_bsp: smolvla_bsp_parcel_20k; its saved processors
+  rename the cameras and tokenize the task text.
 
 Per episode: press Enter or Right arrow to start, and again when the
 parcel is off the table (or the episode ends at --duration). These two
@@ -15,7 +18,7 @@ f (fail) and, for a fail, the phase: p (push), f (flip), e (exit).
 
 Results: parcel_task/results_bsp_parcel.csv (one row per episode, with
 the --level and log-only fields of eval_parcel.sh). Per episode in
-bsp/runs/diffusion_bsp_parcel_<level>_<time>/: ep<n>_cams.mp4 (all 3
+bsp/runs/<model>_parcel_<level>_<time>/: ep<n>_cams.mp4 (all 3
 cameras, 30 fps, from start to done), ep<n>_front.mp4 (top camera at
 the planning frames only) and ep<n>_cmd.npy (command log).
 
@@ -55,8 +58,8 @@ from lerobot.robots.so_follower.config_so_follower import (  # noqa: E402
     SO101FollowerConfig)
 from lerobot.utils.keyboard_input import create_key_listener  # noqa: E402
 
-POLICY = (rb.TRAIN / "diffusion_bsp_parcel_40k/checkpoints/last/"
-          "pretrained_model")
+RUNS = {"diffusion_bsp": ("diffusion_bsp_parcel_40k", "Diffusion-BSP"),
+        "smolvla_bsp": ("smolvla_bsp_parcel_20k", "SmolVLA-BSP")}
 RESULTS = HERE / "results_bsp_parcel.csv"
 V = "/dev/v4l/by-id/usb-JoyandAI_JYU2C-2083_JYU2C-2083-"
 WRIST = V + "2607053-video-index0"
@@ -217,6 +220,7 @@ def ask(prompt, choices):
 
 def main():
     ap = argparse.ArgumentParser()
+    ap.add_argument("--model", choices=list(RUNS), default="diffusion_bsp")
     ap.add_argument("--level", choices=["easy", "medium", "hard"],
                     required=True)
     ap.add_argument("--episodes", type=int, default=3)
@@ -238,19 +242,26 @@ def main():
     ap.add_argument("--label", default="mixed", help="log only")
     args = ap.parse_args()
 
-    patch_diffusion()
-    meta = json.loads((POLICY / "bsp.json").read_text())
+    ckpt, name = RUNS[args.model]
+    policy_dir = rb.TRAIN / ckpt / "checkpoints/last/pretrained_model"
+    meta = json.loads((policy_dir / "bsp.json").read_text())
     args.fps = meta["fps"]
-    cfg = PreTrainedConfig.from_pretrained(POLICY)
-    cfg.noise_scheduler_type = "DDIM"
-    cfg.num_inference_steps = args.ddim_steps
-    policy = get_policy_class(cfg.type).from_pretrained(POLICY, config=cfg)
+    cfg = PreTrainedConfig.from_pretrained(policy_dir)
+    settings = f"x{args.speed:g}"
+    if cfg.type == "diffusion":
+        patch_diffusion()
+        cfg.noise_scheduler_type = "DDIM"
+        cfg.num_inference_steps = args.ddim_steps
+        settings = f"DDIM {args.ddim_steps}; {settings}"
+    policy = get_policy_class(cfg.type).from_pretrained(policy_dir,
+                                                        config=cfg)
     policy.to("cuda").eval()
-    pre, post = make_pre_post_processors(cfg, pretrained_path=str(POLICY))
+    pre, post = make_pre_post_processors(cfg,
+                                         pretrained_path=str(policy_dir))
 
     robot = make_robot()
     if not args.no_preview:
-        start_preview(robot, f"diffusion_bsp {args.level}")
+        start_preview(robot, f"{args.model} {args.level}")
     keys = list(robot.action_features)
     ex = ParcelExecutor(robot, policy, pre, post, keys, args,
                         meta["degree"])
@@ -259,11 +270,10 @@ def main():
         obs = robot.get_observation()
     home = np.array([obs[k] for k in keys])
     stamp = time.strftime("%Y%m%d_%H%M%S")
-    run = f"diffusion_bsp_parcel_{args.level}_{stamp}"
+    run = f"{args.model}_parcel_{args.level}_{stamp}"
     out = rb.HERE / "runs" / run
     new = not RESULTS.exists()
-    print(f"Diffusion-BSP ({POLICY.parent.parent.parent.name}/last, "
-          f"DDIM {args.ddim_steps}) level={args.level} -> {out}")
+    print(f"{name} ({ckpt}/last, {settings}) level={args.level} -> {out}")
     try:
         for ep in range(args.episodes):
             ex.wait_start(f"\n[{args.level}] episode {ep + 1}/"
@@ -273,7 +283,7 @@ def main():
             if not args.no_video:
                 video = EpisodeVideo(
                     robot.cameras, out / f"ep{ep}_cams.mp4",
-                    f"Diffusion-BSP x{args.speed:g} {args.level} ep{ep}")
+                    f"{name} x{args.speed:g} {args.level} ep{ep}")
                 video.start()
             done_s = ex.episode()
             ex.key_done = False
@@ -289,9 +299,9 @@ def main():
             lat = 1000 * float(np.mean(ex.latency)) if ex.latency else 0
             rb.save_episode(ex, out, f"ep{ep}")
             row = {"time": time.strftime("%F_%T"),
-                   "model": "diffusion_bsp",
-                   "checkpoint": "diffusion_bsp_parcel_40k/last",
-                   "settings": f"DDIM {args.ddim_steps}; x{args.speed:g}",
+                   "model": args.model,
+                   "checkpoint": f"{ckpt}/last",
+                   "settings": settings,
                    "level": args.level, "episode": ep,
                    "success": int(res == "s"), "fail_phase": phase,
                    "done_s": "" if done_s is None or res != "s"

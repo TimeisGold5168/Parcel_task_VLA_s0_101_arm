@@ -5,9 +5,10 @@
 #     --level easy|medium|hard [--episodes N] [--parcels N] \
 #     [--parcel KIND] [--where TEXT] [--label up|down|mixed] [--note TEXT]
 #
-#   model     diffusion | smolvla (see run_parcel.sh) | diffusion_bsp
-#             (run_bsp_parcel.py: asks s/f per episode, no dataset;
-#             --no-record and --reset do not apply)
+#   model     diffusion | smolvla | smolvla80k (see run_parcel.sh) |
+#             diffusion_bsp | smolvla_bsp (run_bsp_parcel.py: asks s/f
+#             per episode, no dataset; --no-record and --reset do not
+#             apply)
 #   --level   easy:   2-3 parcels, near the flip-zone side of the stack
 #                     zone, mid reach, not at the zone edge
 #             medium: 3-4 parcels, anywhere inside the stack zone
@@ -21,7 +22,7 @@
 #   --note      free text (log only)
 #   --time      seconds per episode or attempt (default 90)
 #   --reset     reset seconds between episodes (default 30)
-#   --speed     diffusion_bsp only: curve speed vs the demos (default 1;
+#   --speed     BSP models only: curve speed vs the demos (default 1;
 #               2 = twice as fast, 0.7 = slower)
 #   --no-record practice: --episodes attempts, nothing saved, no log
 #   --show      print the session log of all eval datasets and exit
@@ -45,7 +46,7 @@ show() {
     column -s, -t < "$f"
   done
   if [ -f "$HERE/results_bsp_parcel.csv" ]; then
-    echo "== diffusion_bsp (results_bsp_parcel.csv)"
+    echo "== BSP models (results_bsp_parcel.csv)"
     column -s, -t < "$HERE/results_bsp_parcel.csv"
   fi
 }
@@ -78,9 +79,9 @@ case "$LEVEL" in
 esac
 EPISODES=${EPISODES:-${PARCELS:-3}}
 
-if [ "$MODEL" = diffusion_bsp ]; then
+if [ "$MODEL" = diffusion_bsp ] || [ "$MODEL" = smolvla_bsp ]; then
   # own executor (no LeRobot dataset): results_bsp_parcel.csv + videos
-  exec "$PY" "$HERE/run_bsp_parcel.py" --level "$LEVEL" \
+  exec "$PY" "$HERE/run_bsp_parcel.py" --model "$MODEL" --level "$LEVEL" \
     --episodes "$EPISODES" --duration "${EP_TIME:-90}" --speed "$SPEED" \
     --parcels "$PARCELS" --parcel "$KIND" --where "$WHERE" \
     --label "$LABEL" --note "$NOTE"
@@ -120,6 +121,8 @@ case "$MODEL" in
   diffusion) CKPT=diffusion_parcel_a1_80k/last
              SET="DDIM ${STEPS:-10} steps" ;;
   smolvla)   CKPT=smolvla_parcel_a1_20k/last
+             SET="smooth ${SMOOTH:-7}" ;;
+  smolvla80k) CKPT=smolvla_parcel_a1_80k/last
              SET="smooth ${SMOOTH:-7}" ;;
 esac
 SET="$SET; ${EP_TIME:-90} s"

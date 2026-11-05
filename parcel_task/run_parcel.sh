@@ -5,6 +5,7 @@
 #
 #   diffusion = Diffusion 80k on parcel-sort-a (DDIM 10 steps)
 #   smolvla   = SmolVLA 20k on parcel-sort-a
+#   smolvla80k = SmolVLA 80k on parcel-sort-a
 # Default (RECORD=0): one attempt, no recording, preview window
 #   (LeRobot base strategy). Example: run_parcel.sh smolvla
 # RECORD=1: episodes saved to a dataset, preview window, keys below.
@@ -20,7 +21,7 @@
 #     --policy.noise_scheduler_type=DDPM" (training sampler, slow).
 set -euo pipefail
 
-MODEL=${1:?model: diffusion, smolvla}
+MODEL=${1:?model: diffusion, smolvla, smolvla80k}
 COND=${2:-test}
 EPISODES=${3:-1}
 TASK="sort the parcel so the label faces down and push it off the table"
@@ -36,8 +37,10 @@ case "$MODEL" in
     EXTRA=(--policy.noise_scheduler_type=DDIM
            --policy.num_inference_steps="${STEPS:-10}")
     ;;
-  smolvla)
-    POLICY=$TRAIN/smolvla_parcel_a1_20k/checkpoints/last/pretrained_model
+  smolvla|smolvla80k)
+    RUN=smolvla_parcel_a1_20k
+    [ "$MODEL" = smolvla80k ] && RUN=smolvla_parcel_a1_80k
+    POLICY=$TRAIN/$RUN/checkpoints/last/pretrained_model
     MAP='{"observation.images.top": "observation.images.camera1",'
     MAP+=' "observation.images.wrist": "observation.images.camera2",'
     MAP+=' "observation.images.side": "observation.images.camera3"}'
