@@ -77,6 +77,7 @@ DATA_FPS = 30  # third-act-attempt; plain policies have no bsp.json
 RESULTS = HERE.parent / "results_bsp.csv"
 PORT = "/dev/serial/by-id/usb-1a86_USB_Single_Serial_5B61034620-if00"
 TASK = "pick green cube and place into the bin"
+DONE_TEXT = "the cube is in the bin"
 
 
 class LinearChunk:
@@ -227,6 +228,13 @@ class Executor:
             nxt += period
             time.sleep(max(0.0, nxt - time.perf_counter()))
 
+    def done_pressed(self):
+        """True once Enter is pressed in the terminal."""
+        if select.select([sys.stdin], [], [], 0)[0]:
+            sys.stdin.readline()
+            return True
+        return False
+
     def episode(self):
         self.policy.reset()
         self.seg, self.last_cmd, self.fade = None, None, None
@@ -244,10 +252,9 @@ class Executor:
         ctl = threading.Thread(target=self.control, daemon=True)
         ctl.start()
         done_s = None
-        print("running... press Enter when the cube is in the bin")
+        print(f"running... press Enter when {DONE_TEXT}")
         while time.perf_counter() - self.t_start < self.args.duration:
-            if select.select([sys.stdin], [], [], 0)[0]:
-                sys.stdin.readline()
+            if self.done_pressed():
                 done_s = time.perf_counter() - self.t_start
                 break
             if self.progress() >= self.args.replan_frac:

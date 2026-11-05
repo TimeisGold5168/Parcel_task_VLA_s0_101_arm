@@ -1,0 +1,6 @@
+time,model,checkpoint,settings,level,episode,success,fail_phase,done_s,plan_ms,segments,parcels,kind,where,label,note,run
+2026-11-03_18:56:21,diffusion_bsp,diffusion_bsp_parcel_40k/last,DDIM 10; x1,easy,0,1,,,96,87,2,"black_parcel,yellow_box",near_flip,mixed,,diffusion_bsp_parcel_easy_20261103_185457
+2026-11-03_19:04:02,diffusion_bsp,diffusion_bsp_parcel_40k/last,DDIM 10; x1.5,easy,0,1,,11.7,102,25,2,"black_parcel,yellow_box",near_flip,mixed,,diffusion_bsp_parcel_easy_20261103_190342
+2026-11-03_19:04:42,diffusion_bsp,diffusion_bsp_parcel_40k/last,DDIM 10; x1.5,easy,1,1,,34.6,92,69,2,"black_parcel,yellow_box",near_flip,mixed,,diffusion_bsp_parcel_easy_20261103_190342
+2026-11-03_19:09:07,diffusion_bsp,diffusion_bsp_parcel_40k/last,DDIM 10; x1.5,easy,0,1,,14.5,100,30,2,"black_parcel,yellow_box",near_flip,mixed,,diffusion_bsp_parcel_easy_20261103_190827
+2026-11-03_19:09:47,diffusion_bsp,diffusion_bsp_parcel_40k/last,DDIM 10; x1.5,easy,1,1,,32.0,89,66,2,"black_parcel,yellow_box",near_flip,mixed,,diffusion_bsp_parcel_easy_20261103_190827

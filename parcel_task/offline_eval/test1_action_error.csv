@@ -1,0 +1,7 @@
+model,set,exit,flip,push,all,gripper,frames
+diffusion,held_out,8.775,5.974,6.572,6.937,3.397,30.0
+diffusion,train_ref,3.0,2.025,2.191,2.296,0.788,30.0
+diffusion_bsp,held_out,10.426,7.205,6.839,7.86,3.422,26.777
+diffusion_bsp,train_ref,4.242,2.693,2.767,3.033,1.03,26.691
+smolvla,held_out,9.134,6.36,6.926,7.303,2.761,30.0
+smolvla,train_ref,4.941,3.719,4.057,4.122,1.691,30.0

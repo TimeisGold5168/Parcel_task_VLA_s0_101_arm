@@ -1,0 +1,20 @@
+reference futures: 63 flip, 37 no flip
+Loading weights from local directory
+diffusion dec+15: follows swapped images 0.75, follows arm state 0.25
+diffusion dec+30: follows swapped images 0.69, follows arm state 0.31
+/home/zhenting.lee/lerobot/lerobot/outputs/portfolio/parcel_task/offline_eval.py:217: RuntimeWarning: Mean of empty slice
+  dist[kind] = np.mean([np.nanmean(np.abs(future_rel - r))
+Loading weights from local directory
+diffusion_bsp dec+15: follows swapped images 0.72, follows arm state 0.28
+/home/zhenting.lee/lerobot/lerobot/outputs/portfolio/parcel_task/offline_eval.py:217: RuntimeWarning: Mean of empty slice
+  dist[kind] = np.mean([np.nanmean(np.abs(future_rel - r))
+diffusion_bsp dec+30: follows swapped images 0.68, follows arm state 0.32
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+WARNING:huggingface_hub.utils._http:Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+`torch_dtype` is deprecated! Use `dtype` instead!
+Loading  HuggingFaceTB/SmolVLM2-500M-Video-Instruct weights ...
+Loading weights:   0%|          | 0/489 [00:00<?, ?it/s]Loading weights:  33%|███▎      | 159/489 [00:00<00:00, 1553.37it/s]Loading weights:  64%|██████▍   | 315/489 [00:00<00:00, 1434.97it/s]Loading weights:  98%|█████████▊| 477/489 [00:00<00:00, 1507.39it/s]Loading weights: 100%|██████████| 489/489 [00:00<00:00, 1498.97it/s]
+Reducing the number of VLM layers to 16 ...
+Loading weights from local directory
+smolvla dec+15: follows swapped images 0.78, follows arm state 0.22
+smolvla dec+30: follows swapped images 0.61, follows arm state 0.39

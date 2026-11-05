@@ -495,14 +495,229 @@ Files: `parcel_labels/make_labels.py` (makes the label PDFs and
 camera), `parcel_labels/parcel_labels_A4.pdf` (all labels) and
 `parcel_labels/parcel_labels_test_A4.pdf` (one label per size).
 
+## Parcel task: process and results
+
+The parcel task is a small version of Figure AI's parcel sorting.
+How the BSP versions of each policy are made: `bsp/README.md`.
+
+### Task
+
+One parcel per episode:
+
+1. Start at the home pose.
+2. Push or pull the parcel from the stack zone to the flip zone.
+3. If the label is up, flip the parcel.
+4. Push the parcel off the table, label down.
+5. Go back to the home pose.
+
+Parcels: black box, yellow box, black bag and white bag. Each one has
+an ArUco shipping label (see the label section above).
+
+### Setup
+
+| Camera | Device | Size | Policy name (SmolVLA) |
+|---|---|---|---|
+| Top | RealSense colour (YUYV) | 848x480 | `camera1` |
+| Wrist | USB camera 2607053 (MJPG) | 640x480 | `camera2` |
+| Side | USB camera 2607071 (MJPG) | 640x480 | `camera3` |
+
+The 848x480 top view has the same 16:9 field of view as 1280x720
+with less than half the pixels. At 1280x720, the encoder dropped
+frames.
+
+### Dataset A1 (`Low101/parcel-sort-a`, private)
+
+- 100 episodes, 101,642 frames, 30 fps, 3 cameras.
+- 15 heaps, from `parcel_task/schedule_A1.csv`: 25 episodes for each
+  parcel kind, 63 with the label up and 37 with the label down.
+- One task text: "sort the parcel so the label faces down and push
+  it off the table".
+- Phase marks: the operator presses Space at the end of the push and
+  at the end of the flip. `parcel_task/phase_marks_A1.csv` has the
+  marks. The phases are push, flip and exit.
+- The phases are only in the marks file. The dataset has one task,
+  and all models are full-task models.
+
+Medians: 39 s for an episode with a flip, and 21 s without a flip.
+
+Tools (`parcel_task/`):
+
+| File | Purpose |
+|---|---|
+| `record_parcel.sh` | Record one heap of the schedule (3 cameras) |
+| `record_preview.py` | `lerobot-record` with a live 3-camera preview and Space marks |
+| `check_episodes.py` | Check the episode lengths, marks and video frames |
+| `cut_phases.py` | Segments for each phase, from the marks |
+| `make_schedule.py` | Make the heap schedule |
+
+### Models
+
+| Model | Start from | Steps | Batch | Final loss |
+|---|---|---|---|---|
+| `diffusion_parcel_a1_80k` | scratch | 80k | 16 | 0.005 |
+| `diffusion_bsp_parcel_40k` | `diffusion_parcel_a1_80k` | 40k | 16 | 0.016 |
+| `smolvla_parcel_a1_20k` | `lerobot/smolvla_base` | 20k | 12 | 0.068 |
+| `smolvla_parcel_a1_80k` | `smolvla_parcel_a1_20k` | +60k | 12 | 0.029 |
+| `smolvla_bsp_parcel_20k` | `smolvla_parcel_a1_80k` | 20k | 12 | 0.131 |
+
+- Diffusion: each camera is resized to 240x424 before the stack
+  (`parcel_task/train_mixed.py`). Other settings: U-Net
+  (256, 512, 1024), horizon 64, 2 observation steps and AMP.
+- SmolVLA 80k: a fine-tune from step 20k with a new LR schedule
+  (warmup 1000, cosine decay over 60k). A plain resume to 80k would
+  run 50k steps at the minimum LR.
+- Training ran on the laptop GPU (6 GB), one job at a time
+  (`parcel_task/queue_smolvla80k.sh`). SmolVLA 80k took about 20 h,
+  and SmolVLA-BSP took about 18 h.
+- The checkpoints are in `models/` (see `README.md`).
+
+### Offline evaluation (no robot)
+
+Script: `parcel_task/offline_eval.py`. Results:
+`parcel_task/offline_eval/`. SmolVLA is the 20k checkpoint here.
+
+- Held-out: 7 episodes that are not in training.
+- Training reference: 7 training episodes.
+
+Test 1: mean absolute error (deg, 5 arm joints) of the next 1 s of
+predicted actions, compared with the human demo. For BSP, frames
+outside the segment range are not scored.
+
+| Model | Push | Flip | Exit | All, held-out | All, training ref |
+|---|---|---|---|---|---|
+| Diffusion | 6.57 | 5.97 | 8.78 | 6.94 | 2.30 |
+| Diffusion-BSP | 6.84 | 7.21 | 10.43 | 7.86 | 3.03 |
+| SmolVLA 20k | 6.93 | 6.36 | 9.13 | 7.30 | 4.12 |
+
+Phase columns are held-out errors.
+
+Test 2: label decision. At the end of the push, the model must choose
+"flip" (label up) or "exit" (label down). The predicted next 1 s is
+compared with the futures of all training episodes. The demo motion
+shows the choice about 0.5 s after the mark. Thus the test uses
+mark + 15 frames and mark + 30 frames.
+
+| Model | Correct at +15 (100 training eps) | Correct at +30 |
+|---|---|---|
+| Probe on the demo futures | 89 | 92 |
+| Diffusion | 82 | 81 |
+| Diffusion-BSP | 83 | 83 |
+| SmolVLA 20k | 87 | 78 |
+
+The 7 held-out episodes are too few for a result.
+
+Test 3: image swap at the decision point (100 pairs). Keep the arm
+state of a flip episode, and use the images of a no-flip episode (or
+the opposite way). "Follows" = the prediction changes to the kind of
+the images.
+
+| Model | Follows the images, +15 | +30 |
+|---|---|---|
+| Diffusion | 0.75 | 0.69 |
+| Diffusion-BSP | 0.72 | 0.68 |
+| SmolVLA 20k | 0.78 | 0.61 |
+
+Findings: all three models read the label from the images. The exit
+phase has the largest error offline.
+
+### Robot pipeline fixes
+
+| Problem | Cause | Fix |
+|---|---|---|
+| The control loop ran at 10-15 Hz | `prepare_observation_for_inference` converts the images to float on the CPU | `fast_prepare` sends uint8 to the GPU first (`parcel_task/rollout_mixed.py`). The loop now runs at about 25 Hz |
+| SmolVLA motion jittered | Noise between the actions in a chunk | Moving average of 7 actions on the chunk (`SMOOTH=7`) |
+| The loop dropped to 5 Hz with no image | The Rerun viewer blocked `rr.log` | Rerun is off by default. An mpv preview reads the newest frame in a thread |
+| Keys did not work during a run | mpv read the terminal keys | `--input-terminal=no`, and a global key listener |
+| Diffusion was slow | DDPM, 100 steps (0.8 s) | DDIM, 10 steps (0.1 s) |
+
+Scripts:
+
+- `parcel_task/run_parcel.sh`: Diffusion or SmolVLA through
+  `lerobot-rollout`.
+- `parcel_task/run_bsp_parcel.py`: Diffusion-BSP, with the BSP
+  executor and a 3-camera episode video.
+- `parcel_task/eval_parcel.sh`: one entry point for all models.
+
+`eval_parcel.sh` flags:
+
+- `--level easy|medium|hard`
+- `--episodes`, `--parcels`, `--parcel`, `--where`, `--label`
+- `--time`, `--speed`, `--no-record`
+
+Logs: `parcel_task/eval_logs/` and `parcel_task/results_bsp_parcel.csv`.
+
+Levels:
+
+- Easy: 2-3 parcels, near the flip zone, not at the edge of the stack
+  zone.
+- Hard: more than 4 parcels, at the edge of the stack zone. The black
+  box is also a hard case.
+
+### Robot comparison (easy level)
+
+Scene: a black bag with the label down, then a yellow box with the
+label up. SmolVLA is the 20k checkpoint.
+
+![Robot comparison: frames](parcel_task/figures/robot_compare_frames.jpg)
+
+| Model | Black bag (no flip) | Yellow box (flip) |
+|---|---|---|
+| Diffusion-BSP, 1.5x | One push, done in 12-15 s | Flip and exit, done in 32-35 s |
+| Diffusion | 3 push attempts, 38 s | Good flip and exit, 37 s |
+| SmolVLA 20k | Slow exit (about 66 s), then it went to the next parcel | Flip attempt with gripper chatter; fail |
+
+- All three models chose the correct branch (flip or no flip).
+- Diffusion-BSP succeeded in all 5 episodes (1 at 1x, 4 at 1.5x).
+- The ranking is the opposite of the offline ranking: Diffusion-BSP
+  was the best on the robot.
+- On the robot, the push from the stack zone was the weak phase, not
+  the exit.
+- Limits: few trials, easy level only, and BSP ran at 1.5x.
+
+![Robot comparison: joints](parcel_task/figures/robot_compare_joints.png)
+
+### New pull approach (pilot)
+
+The push from the stack zone is not consistent in the demos. The
+operator pushes or pulls in different ways for each parcel, so the
+models retry.
+
+1. First demo (`parcel-approach-demo`): reach over the heap with an
+   open claw, then pull. It is the same for all kinds, but slow
+   (25-35 s for each pull).
+2. Grasp pilot (`parcel-grasp-pilot`, 4 episodes): use the same
+   method as the flip.
+   - Box: close the gripper on the side walls (wrist roll about
+     -95 deg).
+   - Bag: pinch the edge and pull (wrist roll about 0 deg).
+
+![Grasp pilot, black box](parcel_task/figures/grasp_pilot_black_box.jpg)
+
+| Episode | Parcel | Alignment | Carry |
+|---|---|---|---|
+| 0 | White bag | 13 s | 2.5 s |
+| 1 | Yellow box | 16 s | 2 s |
+| 2 | Black bag | 8 s | 2.3 s |
+| 3 | Black box | 14.5 s | 2 s |
+
+- The carry is one smooth motion of 2-2.5 s in every episode.
+- The two grasp modes have very different wrist rolls, so a policy
+  can learn the split.
+- The box grasp has almost the same wrist pose as the flip.
+- The labels stay visible after the release.
+- To improve: the alignment is slow (8-16 s). Turn the wrist and open
+  the gripper during the reach.
+
+![Grasp pilot, joints](parcel_task/figures/grasp_pilot_joints.png)
+
 ## Next steps
 
-- Parcel task (replaces the 3-colour SmolVLA dataset). It is a small
-  version of Figure AI's parcel sorting. The robot pushes the parcel
-  to the centre, flips it if the label is up, and pushes it out to
-  the right with the label down. Cases: rigid box and floppy bag,
-  label up and label down. Models: Diffusion, SmolVLA (from
-  `lerobot/smolvla_base`) and the B-spline (BSP) version of each.
-- Human-in-the-loop corrections (DAgger) on failing spots.
-- RL (HIL-SERL) if time allows.
-- B-spline action representation for smoother, faster execution.
+1. Run the offline evaluation and the robot tests on SmolVLA 80k and
+   SmolVLA-BSP.
+2. Add SmolVLA-BSP to `run_bsp_parcel.py`.
+3. Do fair robot comparisons: Diffusion-BSP at 1x, and the medium and
+   hard levels.
+4. Record the grasp-based pull in full episodes. Then retrain the
+   pull skill.
+5. DAgger (human corrections) after the approach change.
+6. RL (HIL-SERL), if time allows.

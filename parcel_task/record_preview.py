@@ -50,8 +50,11 @@ def viewer_cmd(w, h, fps):
     the arrow keys, which are the recording keys.
     """
     if MPV:
+        # --input-terminal=no: mpv must not read keys from the terminal,
+        # or it takes the keys typed at the script prompts
         return [MPV, "--really-quiet", "--title=recording preview", "--ontop",
                 "--no-input-default-bindings", "--input-vo-keyboard=no",
+                "--input-terminal=no",
                 "--no-osc", "--cache=no", "--untimed",
                 "--profile=low-latency", "--demuxer=rawvideo",
                 f"--demuxer-rawvideo-w={w}", f"--demuxer-rawvideo-h={h}",

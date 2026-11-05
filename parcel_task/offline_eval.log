@@ -1,0 +1,112 @@
+reference futures: 63 flip, 37 no flip
+Loading weights from local directory
+== diffusion (/home/zhenting.lee/lerobot/lerobot/outputs/train/diffusion_parcel_a1_80k/checkpoints/last/pretrained_model)
+  held_out parcel-sort-a_backup_with_h2: 257 samples, arm MAE 5.37 deg
+  held_out parcel-sort-a_heap1_720: 344 samples, arm MAE 8.15 deg
+  train_ref parcel-sort-a: 477 samples, arm MAE 2.40 deg
+  train_dec parcel-sort-a: 200 samples, arm MAE 5.14 deg
+Loading weights from local directory
+== diffusion_bsp (/home/zhenting.lee/lerobot/lerobot/outputs/train/diffusion_bsp_parcel_40k/checkpoints/last/pretrained_model)
+  held_out parcel-sort-a_backup_with_h2: 257 samples, arm MAE 6.37 deg
+  held_out parcel-sort-a_heap1_720: 344 samples, arm MAE 9.02 deg
+  train_ref parcel-sort-a: 477 samples, arm MAE 3.11 deg
+/home/zhenting.lee/lerobot/lerobot/outputs/portfolio/parcel_task/offline_eval.py:245: RuntimeWarning: Mean of empty slice
+  err = np.abs(pred - gt)
+/home/zhenting.lee/lerobot/lerobot/outputs/portfolio/parcel_task/offline_eval.py:246: RuntimeWarning: Mean of empty slice
+  info["arm_mae"] = np.nanmean(err[:, :, :5], axis=(1, 2))
+/home/zhenting.lee/lerobot/lerobot/outputs/portfolio/parcel_task/offline_eval.py:216: RuntimeWarning: Mean of empty slice
+  for kind, lst in refs.items():
+/home/zhenting.lee/lerobot/lerobot/outputs/portfolio/parcel_task/offline_eval.py:216: RuntimeWarning: Mean of empty slice
+  for kind, lst in refs.items():
+  train_dec parcel-sort-a: 200 samples, arm MAE 5.74 deg
+`torch_dtype` is deprecated! Use `dtype` instead!
+Loading  HuggingFaceTB/SmolVLM2-500M-Video-Instruct weights ...
+Loading weights:   0%|          | 0/489 [00:00<?, ?it/s]Loading weights:  42%|████▏     | 204/489 [00:00<00:00, 2031.51it/s]Loading weights: 100%|██████████| 489/489 [00:00<00:00, 2849.87it/s]
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+WARNING:huggingface_hub.utils._http:Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Reducing the number of VLM layers to 16 ...
+Loading weights from local directory
+== smolvla (/home/zhenting.lee/lerobot/lerobot/outputs/train/smolvla_parcel_a1_20k/checkpoints/last/pretrained_model)
+  held_out parcel-sort-a_backup_with_h2: 257 samples, arm MAE 6.36 deg
+  held_out parcel-sort-a_heap1_720: 344 samples, arm MAE 8.05 deg
+  train_ref parcel-sort-a: 477 samples, arm MAE 4.18 deg
+  train_dec parcel-sort-a: 200 samples, arm MAE 5.51 deg
+
+Test 1: next 1 s action error (deg, arm joints)
+phase                    push  flip   exit   all  gripper  frames
+model         set                                                
+diffusion     held_out   6.57  5.97   8.78  6.94     3.40   30.00
+              train_ref  2.19  2.03   3.00  2.30     0.79   30.00
+diffusion_bsp held_out   6.84  7.21  10.43  7.86     3.42   26.78
+              train_ref  2.77  2.69   4.24  3.03     1.03   26.69
+smolvla       held_out   6.93  6.36   9.13  7.30     2.76   30.00
+              train_ref  4.06  3.72   4.94  4.12     1.69   30.00
+
+Test 2: label decision after mark 1 (correct / n)
+                                  n  model_correct  probe_correct
+model         set       phase                                    
+diffusion     held_out  dec+15    7              4              4
+                        dec+30    7              4              5
+              train_dec dec+15  100             82             89
+                        dec+30  100             81             92
+              train_ref dec+15    7              6              6
+                        dec+30    7              6              6
+diffusion_bsp held_out  dec+15    7              5              4
+                        dec+30    7              4              5
+              train_dec dec+15  100             83             89
+                        dec+30  100             83             92
+              train_ref dec+15    7              7              6
+                        dec+30    7              5              6
+smolvla       held_out  dec+15    7              5              4
+                        dec+30    7              4              5
+              train_dec dec+15  100             87             89
+                        dec+30  100             78             92
+              train_ref dec+15    7              7              6
+                        dec+30    7              6              6
+
+held-out decisions:
+        model                      dataset  episode  phase  truth pred_kind demo_kind
+    diffusion parcel-sort-a_backup_with_h2        7 dec+15 noflip      flip      flip
+    diffusion parcel-sort-a_backup_with_h2        7 dec+30 noflip      flip      flip
+    diffusion parcel-sort-a_backup_with_h2        8 dec+15   flip      flip      flip
+    diffusion parcel-sort-a_backup_with_h2        8 dec+30   flip      flip      flip
+    diffusion parcel-sort-a_backup_with_h2        9 dec+15   flip      flip      flip
+    diffusion parcel-sort-a_backup_with_h2        9 dec+30   flip      flip      flip
+    diffusion      parcel-sort-a_heap1_720        3 dec+15   flip      flip      flip
+    diffusion      parcel-sort-a_heap1_720        3 dec+30   flip      flip      flip
+    diffusion      parcel-sort-a_heap1_720        4 dec+15 noflip      flip      flip
+    diffusion      parcel-sort-a_heap1_720        4 dec+30 noflip      flip    noflip
+    diffusion      parcel-sort-a_heap1_720        5 dec+15 noflip      flip      flip
+    diffusion      parcel-sort-a_heap1_720        5 dec+30 noflip      flip      flip
+    diffusion      parcel-sort-a_heap1_720        6 dec+15   flip      flip      flip
+    diffusion      parcel-sort-a_heap1_720        6 dec+30   flip      flip      flip
+diffusion_bsp parcel-sort-a_backup_with_h2        7 dec+15 noflip    noflip      flip
+diffusion_bsp parcel-sort-a_backup_with_h2        7 dec+30 noflip      flip      flip
+diffusion_bsp parcel-sort-a_backup_with_h2        8 dec+15   flip      flip      flip
+diffusion_bsp parcel-sort-a_backup_with_h2        8 dec+30   flip      flip      flip
+diffusion_bsp parcel-sort-a_backup_with_h2        9 dec+15   flip      flip      flip
+diffusion_bsp parcel-sort-a_backup_with_h2        9 dec+30   flip      flip      flip
+diffusion_bsp      parcel-sort-a_heap1_720        3 dec+15   flip      flip      flip
+diffusion_bsp      parcel-sort-a_heap1_720        3 dec+30   flip      flip      flip
+diffusion_bsp      parcel-sort-a_heap1_720        4 dec+15 noflip      flip      flip
+diffusion_bsp      parcel-sort-a_heap1_720        4 dec+30 noflip      flip    noflip
+diffusion_bsp      parcel-sort-a_heap1_720        5 dec+15 noflip      flip      flip
+diffusion_bsp      parcel-sort-a_heap1_720        5 dec+30 noflip      flip      flip
+diffusion_bsp      parcel-sort-a_heap1_720        6 dec+15   flip      flip      flip
+diffusion_bsp      parcel-sort-a_heap1_720        6 dec+30   flip      flip      flip
+      smolvla parcel-sort-a_backup_with_h2        7 dec+15 noflip    noflip      flip
+      smolvla parcel-sort-a_backup_with_h2        7 dec+30 noflip      flip      flip
+      smolvla parcel-sort-a_backup_with_h2        8 dec+15   flip      flip      flip
+      smolvla parcel-sort-a_backup_with_h2        8 dec+30   flip      flip      flip
+      smolvla parcel-sort-a_backup_with_h2        9 dec+15   flip      flip      flip
+      smolvla parcel-sort-a_backup_with_h2        9 dec+30   flip      flip      flip
+      smolvla      parcel-sort-a_heap1_720        3 dec+15   flip      flip      flip
+      smolvla      parcel-sort-a_heap1_720        3 dec+30   flip      flip      flip
+      smolvla      parcel-sort-a_heap1_720        4 dec+15 noflip      flip      flip
+      smolvla      parcel-sort-a_heap1_720        4 dec+30 noflip      flip    noflip
+      smolvla      parcel-sort-a_heap1_720        5 dec+15 noflip      flip      flip
+      smolvla      parcel-sort-a_heap1_720        5 dec+30 noflip      flip      flip
+      smolvla      parcel-sort-a_heap1_720        6 dec+15   flip      flip      flip
+      smolvla      parcel-sort-a_heap1_720        6 dec+30   flip      flip      flip
+
+saved /home/zhenting.lee/lerobot/lerobot/outputs/portfolio/parcel_task/offline_eval
