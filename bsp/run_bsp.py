@@ -245,6 +245,10 @@ class Executor:
             self.noise = torch.randn(
                 (1, cfg.horizon, cfg.action_feature.shape[0]),
                 device=self.device)
+        elif self.args.fixed_noise and cfg.type == "smolvla":
+            self.noise = torch.randn(
+                (1, cfg.chunk_size, cfg.max_action_dim),
+                device=self.device)
         self.latency, self.log, self.frames = [], [], []
         self.ticks, self.plans = [], []
         self.n_segments, self.running = 0, True

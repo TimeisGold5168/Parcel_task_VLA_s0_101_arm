@@ -40,6 +40,7 @@ from pathlib import Path
 
 import cv2
 import numpy as np
+import torch
 
 HERE = Path(__file__).parent
 sys.path.insert(0, str(HERE))
@@ -232,7 +233,9 @@ def main():
                     help="max joint change per control tick (deg)")
     ap.add_argument("--blend", type=float, default=0.0)
     ap.add_argument("--ddim-steps", type=int, default=10)
-    ap.add_argument("--fixed-noise", action="store_true")
+    ap.add_argument("--fixed-noise", action="store_true",
+                    help="one start noise per episode (smaller jumps "
+                    "between segments)")
     ap.add_argument("--debug", action="store_true")
     ap.add_argument("--no-preview", action="store_true")
     ap.add_argument("--no-video", action="store_true",
@@ -255,6 +258,16 @@ def main():
         settings = f"DDIM {args.ddim_steps}; {settings}"
     policy = get_policy_class(cfg.type).from_pretrained(policy_dir,
                                                         config=cfg)
+    if cfg.type == "smolvla":
+        # train_bsp.py saved 146M VLM weights as float32 (lerobot-train
+        # keeps the VLM in bf16): bf16 plans in ~0.21 s, not ~0.35 s
+        vlm = policy.model.vlm_with_expert.vlm
+        for prm in vlm.parameters():
+            if prm.dtype == torch.float32:
+                prm.data = prm.data.to(torch.bfloat16)
+        settings = f"{settings}; blend {args.blend:g}"
+        if args.fixed_noise:
+            settings += "; fixed noise"
     policy.to("cuda").eval()
     pre, post = make_pre_post_processors(cfg,
                                          pretrained_path=str(policy_dir))

@@ -50,6 +50,8 @@ MODELS = {
     "diffusion": TRAIN / "diffusion_parcel_a1_80k",
     "diffusion_bsp": TRAIN / "diffusion_bsp_parcel_40k",
     "smolvla": TRAIN / "smolvla_parcel_a1_20k",
+    "smolvla80k": TRAIN / "smolvla_parcel_a1_80k",
+    "smolvla_bsp": TRAIN / "smolvla_bsp_parcel_20k",
 }
 # set name: [(dataset, episodes, decision frames only)]
 SETS = {
@@ -115,7 +117,7 @@ class Model:
         obs = self.pre({k: v for k, v in batch.items()
                         if not k.startswith("action")})
         p = self.policy
-        if self.cfg.type == "smolvla":
+        if self.cfg.type == "smolvla" and self.bsp is None:
             p.reset()
             out = self.post(p.predict_action_chunk(obs))
             return out[:, :H].float().cpu().numpy()

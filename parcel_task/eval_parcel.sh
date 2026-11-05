@@ -24,6 +24,8 @@
 #   --reset     reset seconds between episodes (default 30)
 #   --speed     BSP models only: curve speed vs the demos (default 1;
 #               2 = twice as fast, 0.7 = slower)
+#   --blend     BSP models only: fade between segments (s, default 0)
+#   --fixed-noise  BSP models only: one start noise per episode
 #   --no-record practice: --episodes attempts, nothing saved, no log
 #   --show      print the session log of all eval datasets and exit
 #
@@ -56,8 +58,11 @@ MODEL=${1:?usage: eval_parcel.sh <model> --level easy|medium|hard ...}
 shift
 LEVEL="" EPISODES="" PARCELS="" KIND="" WHERE="" LABEL=mixed NOTE=""
 NO_RECORD=0 SPEED=1
+BSP_ARGS=()
 while [ $# -gt 0 ]; do
   case "$1" in
+    --blend) BSP_ARGS+=(--blend "$2"); shift 2 ;;
+    --fixed-noise) BSP_ARGS+=(--fixed-noise); shift ;;
     --no-record) NO_RECORD=1; shift ;;
     --time) export EP_TIME=$2; shift 2 ;;
     --speed) SPEED=$2; shift 2 ;;
@@ -84,7 +89,7 @@ if [ "$MODEL" = diffusion_bsp ] || [ "$MODEL" = smolvla_bsp ]; then
   exec "$PY" "$HERE/run_bsp_parcel.py" --model "$MODEL" --level "$LEVEL" \
     --episodes "$EPISODES" --duration "${EP_TIME:-90}" --speed "$SPEED" \
     --parcels "$PARCELS" --parcel "$KIND" --where "$WHERE" \
-    --label "$LABEL" --note "$NOTE"
+    --label "$LABEL" --note "$NOTE" "${BSP_ARGS[@]}"
 fi
 
 if [ "$NO_RECORD" = 1 ]; then
