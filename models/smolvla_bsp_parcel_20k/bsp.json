@@ -1,0 +1,8 @@
+{
+ "degree": 3,
+ "chunk_size": 10,
+ "max_error": 0.5,
+ "fps": 30,
+ "rows": 16,
+ "targets": "targets_parcel-sort-a_e0.5.npz"
+}
