@@ -26,6 +26,8 @@
 #               2 = twice as fast, 0.7 = slower)
 #   --blend     BSP models only: fade between segments (s, default 0)
 #   --fixed-noise  BSP models only: one start noise per episode
+#   --steps     BSP models only: denoising steps per plan (SmolVLA flow
+#               steps or Diffusion DDIM steps; default 10)
 #   --debug     BSP models only: ep<n>_debug.npz per episode (timing,
 #               margin, seam jumps, arm lag); read with
 #               bsp/diagnose_bsp.py <run folder>
@@ -67,6 +69,7 @@ while [ $# -gt 0 ]; do
     --blend) BSP_ARGS+=(--blend "$2"); shift 2 ;;
     --fixed-noise) BSP_ARGS+=(--fixed-noise); shift ;;
     --debug) BSP_ARGS+=(--debug); shift ;;
+    --steps) BSP_ARGS+=(--flow-steps "$2" --ddim-steps "$2"); shift 2 ;;
     --no-record) NO_RECORD=1; shift ;;
     --time) export EP_TIME=$2; shift 2 ;;
     --speed) SPEED=$2; shift 2 ;;

@@ -167,10 +167,153 @@ Other settings:
 Known issue: `train_bsp.py` builds the model from the config, so 146M
 VLM weights are float32 in place of bfloat16. Thus the checkpoint is
 1198 MB, not 907 MB. Training ran at 3.2 s per step, compared with
-1.2 s per step for `lerobot-train`. A possible fix: cast the VLM to
-bfloat16 after the warm start. We did not test this fix.
+1.2 s per step for `lerobot-train`. A possible fix for training: cast
+the VLM to bfloat16 after the warm start (not tested in training).
+At inference, `run_bsp_parcel.py` casts these weights to bfloat16:
+the plan time goes from about 350 ms to 209 ms, and the offline error
+does not change (2.93 deg).
 
-## 4. Trained BSP models
+Robot fixes for SmolVLA-BSP (parcel task, 1x):
+
+| Settings | Result | Reversals/s | Acceleration p95 (deg/s^2) |
+|---|---|---|---|
+| float32 VLM, random noise, no blend (plan 325 ms) | 2 fails | 2.5-3.4 | 988-1410 |
+| bfloat16 VLM, `--fixed-noise`, `--blend 0.2` (plan 223 ms) | 1 success (48.4 s) | 1.8 | 614 |
+| SmolVLA 80k, chunks (reference) | Good | 1.1-1.2 | 441-450 |
+
+With the old settings, the command was a sawtooth. The arm moved
+inside a segment, then jumped back 7-10 deg at each switch. Fixed
+noise cut the median jump between two plans from 6.2 to 4.0 deg
+(offline).
+
+## 4. Planning time, margin and the speed limit
+
+### 4.1 The margin
+
+The planner starts the next plan when the current segment is
+`--replan-frac` (f) used. The new plan must arrive before the old
+segment ends. If it arrives late, the arm stops at the end of the old
+segment (a "hold"), then moves again. The time that is left on the
+old segment when the new plan arrives is the margin:
+
+```text
+margin = (1 - f) * S / (30 * v) - L
+```
+
+- S = length of one segment (demo frames). For the parcel models,
+  S is about 35-45 frames (1.2-1.5 s at 1x).
+- f = `--replan-frac` (default 0.5).
+- v = `--speed`.
+- L = planning time (s).
+
+The margin must stay above 0. Thus the speed limit is:
+
+```text
+v_max = (1 - f) * S / (30 * L)
+```
+
+Use the slow plans (p95 of L) and the short segments (small S). The
+average values give a limit that is too high.
+
+Example: SmolVLA-BSP, L = 0.223 s (robot), S = 40, f = 0.5:
+
+| Speed | Margin | Result |
+|---|---|---|
+| 1x | 0.44 s | Safe |
+| 1.5x | 0.22 s | Safe |
+| 2x | 0.11 s | Tight: one slow plan or a short segment gives a hold |
+| 2.5x | 0.04 s | Holds are likely |
+| 3x | about 0 s | Holds |
+
+With p95 L = 0.3 s and S = 33, v_max is about 1.8x. Diffusion-BSP
+plans in about 95 ms, so its limit is about 2.3 times higher.
+
+Other effects of L:
+
+- The plan uses an observation that is L old. The executor starts the
+  new segment at the point near "now" that is closest to the last
+  command, so this delay does not cause a jump.
+- A lower f gives more margin, but more segment switches.
+- `--blend` must end before the old segment ends. The executor uses
+  min(blend, time left), so a small margin also shortens the blend.
+
+### 4.2 How to measure the limit on the robot
+
+1. Run one episode at each speed with `--debug`:
+
+   ```bash
+   for S in 1 1.5 2; do
+     bash outputs/portfolio/parcel_task/eval_parcel.sh smolvla_bsp \
+       --level easy --episodes 1 --parcels 1 --parcel yellow_box \
+       --where near_flip --time 60 --speed $S \
+       --blend 0.2 --fixed-noise --debug
+   done
+   ```
+
+2. Read the logs:
+
+   ```bash
+   python outputs/portfolio/bsp/diagnose_bsp.py outputs/portfolio/bsp/runs
+   ```
+
+| Column | Meaning | Target |
+|---|---|---|
+| `plan` | Mean and p95 planning time (ms) | p95 well below the time between switches |
+| `margin` | Minimum time left on the old segment at a switch (s) | Above 0 |
+| `hold` | % of ticks frozen at a segment end | About 0% |
+| `seam` | p95 jump at a switch (deg) | Small (this is the jerk) |
+| `lag` | Arm position compared with the command at plan time (deg) | Low |
+| `rev/s` | Direction reversals per second | Near the chunk policy |
+
+The limit of a model is the highest speed where `margin` stays above
+0 and `hold` stays near 0%. A BSP claim needs the success rate and the
+completion time at that speed, compared with the chunk policy at 1x.
+
+### 4.3 Where the SmolVLA-BSP planning time goes
+
+Profile on the laptop GPU (RTX PRO 500 Blackwell, 6 GB), 3 cameras,
+one plan. Each part was timed with a CUDA sync, so the total is
+higher than without the timer (about 210 ms offline, 223 ms on the
+robot).
+
+| Part | 10 steps | 5 steps | 3 steps |
+|---|---|---|---|
+| Images to the GPU + preprocessor | 2 ms | 2 ms | 2 ms |
+| Vision encoder, 3 cameras | 73 ms | 73 ms | 73 ms |
+| VLM prefix pass (16 layers) | 21 ms | 12 ms | 12 ms |
+| Denoising steps (action expert) | 176 ms (10 x 17.6) | 50 ms (5 x 10) | 30 ms (3 x 10) |
+| Total model | 287 ms | 141 ms | 122 ms |
+| Error compared with the demo (episode 45) | 2.76 deg | 2.68 deg | 2.61 deg |
+
+- The CPU part is about 2 ms. Thus CPU threads or SIMD do not help.
+- The denoising steps are the largest part. Each step runs 16 tokens
+  through 16 small layers. This is many small GPU kernels, so the
+  time per kernel launch counts more than the compute.
+- Fewer flow steps did not make the error worse on this episode
+  (fixed noise). Use `--steps 5` on the robot to check the success
+  rate and the smoothness.
+
+The time for each step at 10 steps (17.6 ms) is higher than at 5
+steps (10 ms). The cause is not known. A possible cause is a lower
+GPU clock during the longer run.
+
+### 4.4 How to make planning faster
+
+| Method | Expected gain | Cost or risk |
+|---|---|---|
+| Fewer flow steps (`--steps 5`) | 287 -> 141 ms (measured) | Check success and smoothness on the robot |
+| bfloat16 VLM (done in `run_bsp_parcel.py`) | 350 -> 209 ms (measured) | None found |
+| CUDA graphs (`torch.compile(mode="reduce-overhead")`) on the denoising step | Large: launch overhead is the main cost of each step | The KV cache changes in place (`crop`); needs static shapes |
+| Smaller camera images (512x512 per camera now) | Vision encoder time goes down | Needs retraining; less detail for the label |
+| Fewer cameras | About 24 ms per camera | Needs retraining; less information |
+| TensorRT or ONNX export | Large | Much work for a custom model |
+| A separate process for the planner | Removes contention for the Python GIL with the control and camera threads (robot 223 ms, offline 209 ms) | More code (shared memory for images) |
+| A faster GPU | Desktop GPUs are several times faster | Hardware cost |
+
+More Python threads do not make one plan faster. The GPU runs one plan
+at a time, and Python threads share one interpreter lock.
+
+## 5. Trained BSP models
 
 | Model | Task | Init | Steps | Batch | Final loss | Time |
 |---|---|---|---|---|---|---|
@@ -182,7 +325,7 @@ bfloat16 after the warm start. We did not test this fix.
 The loss values of different policies do not compare. Each policy
 has its own loss.
 
-## 5. Commands
+## 6. Commands
 
 ```bash
 # targets (once per dataset)
@@ -201,12 +344,16 @@ python outputs/portfolio/bsp/run_bsp.py --policy diffusion --spot SQ \
 # robot (parcel task, Diffusion-BSP)
 bash outputs/portfolio/parcel_task/eval_parcel.sh diffusion_bsp \
   --level easy --episodes 2 --speed 1.5
+
+# robot (parcel task, SmolVLA-BSP)
+bash outputs/portfolio/parcel_task/eval_parcel.sh smolvla_bsp \
+  --level easy --episodes 2 --speed 1 --blend 0.2 --fixed-noise
 ```
 
-`run_bsp_parcel.py` runs only Diffusion-BSP now. SmolVLA-BSP needs the
-SmolVLA processors and the camera rename in this script.
+`run_bsp_parcel.py --model smolvla_bsp` uses the processors saved in
+the checkpoint (camera rename and tokenizer).
 
-## 6. Files
+## 7. Files
 
 | File | Purpose |
 |---|---|

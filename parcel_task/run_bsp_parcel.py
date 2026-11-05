@@ -247,6 +247,9 @@ def main():
                     help="max joint change per control tick (deg)")
     ap.add_argument("--blend", type=float, default=0.0)
     ap.add_argument("--ddim-steps", type=int, default=10)
+    ap.add_argument("--flow-steps", type=int, default=10,
+                    help="smolvla_bsp: flow matching steps per plan "
+                    "(10 = training default; 5 halves the plan time)")
     ap.add_argument("--fixed-noise", action="store_true",
                     help="one start noise per episode (smaller jumps "
                     "between segments)")
@@ -265,6 +268,9 @@ def main():
     args.fps = meta["fps"]
     cfg = PreTrainedConfig.from_pretrained(policy_dir)
     settings = f"x{args.speed:g}"
+    if cfg.type == "smolvla":
+        cfg.num_steps = args.flow_steps
+        settings = f"flow {args.flow_steps}; {settings}"
     if cfg.type == "diffusion":
         patch_diffusion()
         cfg.noise_scheduler_type = "DDIM"

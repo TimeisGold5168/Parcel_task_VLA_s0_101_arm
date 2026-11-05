@@ -676,6 +676,31 @@ label up. SmolVLA is the 20k checkpoint.
 
 ![Robot comparison: joints](parcel_task/figures/robot_compare_joints.png)
 
+### SmolVLA 80k and SmolVLA-BSP on the robot (easy level)
+
+- SmolVLA 80k: 2 episodes, good. It is the smoothest model on the
+  robot: 1.1-1.2 direction reversals per second (SmolVLA 20k: about
+  4).
+- SmolVLA-BSP, first run (float32 VLM, random noise, no blend, plan
+  325 ms): jerks at each segment switch, 2 fails.
+- SmolVLA-BSP after the fixes (bfloat16 VLM, fixed noise, blend 0.2,
+  plan 223 ms): 1 success in 48.4 s, 1.8 reversals per second.
+
+The planning time sets the speed limit of a BSP model. The new plan
+must arrive before the old segment ends:
+
+```text
+margin = (1 - f) * S / (30 * v) - L
+v_max = (1 - f) * S / (30 * L)
+```
+
+f = `--replan-frac`, S = segment length (frames), v = `--speed`,
+L = planning time. For SmolVLA-BSP (L = 0.22-0.3 s, S = 33-40), the
+limit is about 1.8-3x; use 1.5x or less. The debug logs
+(`--debug`, `bsp/diagnose_bsp.py`) give the real margin and the
+holds. Details, the time profile and the ways to plan faster:
+`bsp/README.md`, section 4.
+
 ### New pull approach (pilot)
 
 The push from the stack zone is not consistent in the demos. The
