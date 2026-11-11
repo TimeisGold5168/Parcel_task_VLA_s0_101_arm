@@ -1,0 +1,102 @@
+/home/zhenting.lee/lerobot/lerobot/outputs/portfolio/parcel_task/offline_eval_b.py:234: FutureWarning: DataFrameGroupBy.apply operated on the grouping columns. This behavior is deprecated, and in a future version of pandas the grouping columns will be excluded from the operation. Either pass `include_groups=False` to exclude the groupings or explicitly select the grouping columns after groupby to silence this warning.
+  print("demo probe:", probe.groupby("set").apply(
+`torch_dtype` is deprecated! Use `dtype` instead!
+demo probe: {'held_out': '6/6', 'train': '95/99'} | kinds: {('held_out', 'flip'): 4, ('held_out', 'noflip'): 2, ('train', 'flip'): 61, ('train', 'noflip'): 38}
+probe misses: [['train', 'parcel-sort-b', 15, 'flip'], ['train', 'parcel-sort-b', 27, 'flip'], ['train', 'parcel-sort-b', 30, 'noflip'], ['train', 'parcel-sort-b', 32, 'flip']]
+Loading  HuggingFaceTB/SmolVLM2-500M-Video-Instruct weights ...
+Loading weights:   0%|          | 0/489 [00:00<?, ?it/s]Loading weights:  43%|████▎     | 210/489 [00:00<00:00, 2093.02it/s]Loading weights: 100%|██████████| 489/489 [00:00<00:00, 2650.69it/s]
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+WARNING:huggingface_hub.utils._http:Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Reducing the number of VLM layers to 16 ...
+Loading weights from local directory
+== smolvla_b (/home/zhenting.lee/lerobot/lerobot/outputs/train/smolvla_parcel_b_80k/checkpoints/last/pretrained_model)
+  test 1 held_out: 349 samples, arm MAE 11.44 deg
+  test 1 train_ref: 323 samples, arm MAE 1.91 deg
+  test 2 train: 95/99 correct
+  test 2 held_out: 2/6 correct
+  test 3: follows images 0.71, follows arm state 0.29
+Loading  HuggingFaceTB/SmolVLM2-500M-Video-Instruct weights ...
+Loading weights:   0%|          | 0/489 [00:00<?, ?it/s]Loading weights:  43%|████▎     | 212/489 [00:00<00:00, 2116.85it/s]Loading weights: 100%|██████████| 489/489 [00:00<00:00, 2627.97it/s]
+Reducing the number of VLM layers to 16 ...
+Loading weights from local directory
+== smolvla_b40k (/home/zhenting.lee/lerobot/lerobot/outputs/train/smolvla_parcel_b_80k/checkpoints/040000/pretrained_model)
+  test 1 held_out: 349 samples, arm MAE 11.48 deg
+  test 1 train_ref: 323 samples, arm MAE 2.92 deg
+  test 2 train: 94/99 correct
+  test 2 held_out: 2/6 correct
+  test 3: follows images 0.69, follows arm state 0.31
+Reducing the number of VLM layers to 16 ...
+Loading weights from local directory
+== smolvla_bsp_b (/home/zhenting.lee/lerobot/lerobot/outputs/train/smolvla_bsp_parcel_b_40k/checkpoints/last/pretrained_model)
+  test 1 held_out: 349 samples, arm MAE 12.04 deg
+  test 1 train_ref: 323 samples, arm MAE 2.39 deg
+  test 2 train: 93/99 correct
+  test 2 held_out: 2/6 correct
+  test 3: follows images 0.68, follows arm state 0.32
+Loading weights from local directory
+== diffusion_b (/home/zhenting.lee/lerobot/lerobot/outputs/train/diffusion_parcel_b_80k/checkpoints/last/pretrained_model)
+  test 1 held_out: 349 samples, arm MAE 11.56 deg
+  test 1 train_ref: 323 samples, arm MAE 2.02 deg
+  test 2 train: 95/99 correct
+  test 2 held_out: 3/6 correct
+  test 3: follows images 0.77, follows arm state 0.23
+Loading weights from local directory
+== diffusion_bsp_b (/home/zhenting.lee/lerobot/lerobot/outputs/train/diffusion_bsp_parcel_b_40k/checkpoints/last/pretrained_model)
+  test 1 held_out: 349 samples, arm MAE 12.40 deg
+  test 1 train_ref: 323 samples, arm MAE 3.08 deg
+  test 2 train: 91/99 correct
+  test 2 held_out: 2/6 correct
+  test 3: follows images 0.85, follows arm state 0.15
+
+Test 1: next 1 s action error (deg, arm joints)
+phase                      approach  carry   exit    all  gripper
+model           set                                              
+diffusion_b     held_out      10.83  11.18  13.04  11.56     6.84
+                train_ref      1.41   1.85   3.00   2.02     1.55
+diffusion_bsp_b held_out      11.99  11.96  13.68  12.40     7.12
+                train_ref      2.10   2.86   4.58   3.08     1.83
+smolvla_b       held_out      10.41  11.36  12.64  11.44     6.88
+                train_ref      1.52   1.77   2.58   1.91     1.33
+smolvla_b40k    held_out      10.31  11.45  12.72  11.48     6.75
+                train_ref      2.22   2.79   3.96   2.92     1.99
+smolvla_bsp_b   held_out      10.49  11.89  13.89  12.04     7.00
+                train_ref      1.86   2.26   3.20   2.39     1.81
+
+Test 2: flip decision (correct / n)
+                                 sum  size
+model           set      truth            
+diffusion_b     held_out flip      2     4
+                         noflip    1     2
+                train    flip     58    61
+                         noflip   37    38
+diffusion_bsp_b held_out flip      2     4
+                         noflip    0     2
+                train    flip     55    61
+                         noflip   36    38
+smolvla_b       held_out flip      2     4
+                         noflip    0     2
+                train    flip     58    61
+                         noflip   37    38
+smolvla_b40k    held_out flip      2     4
+                         noflip    0     2
+                train    flip     58    61
+                         noflip   36    38
+smolvla_bsp_b   held_out flip      2     4
+                         noflip    0     2
+                train    flip     57    61
+                         noflip   36    38
+
+Test 3: image swap, follows the images
+model            state_kind
+diffusion_b      flip          0.95
+                 noflip        0.47
+diffusion_bsp_b  flip          1.00
+                 noflip        0.61
+smolvla_b        flip          0.90
+                 noflip        0.39
+smolvla_b40k     flip          0.90
+                 noflip        0.34
+smolvla_bsp_b    flip          0.92
+                 noflip        0.29
+
+saved /home/zhenting.lee/lerobot/lerobot/outputs/portfolio/parcel_task/offline_eval_b

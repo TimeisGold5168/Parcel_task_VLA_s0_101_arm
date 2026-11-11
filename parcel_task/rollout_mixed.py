@@ -14,7 +14,10 @@ record_preview.py, with the control loop rate. Keys go to LeRobot's
 global listener (Right, Left, Esc), with any window in focus.
 Env: PREVIEW, PREVIEW_W (default 1600), PREVIEW_FPS (default 15),
 PREVIEW_LABEL (text on the window), SMOOTH (SmolVLA chunk moving
-average over this many actions; 0 = off).
+average over this many actions; 0 = off), FREEZE=1 (no autograd in
+RTC guidance), COMPILE=default (compiled denoise step),
+RTC_EXACT_DELAY=1 (RTC skips the actions really used),
+ROLLOUT_DEBUG (.npz log path, read with rollout_debug.py).
 """
 
 import collections
@@ -67,6 +70,163 @@ def patch_smooth(k):
         return y.to(x.dtype)
 
     ms.SmolVLAPolicy._get_action_chunk = smoothed
+
+
+def patch_first_plan(freeze, compile_mode):
+    """Speed-ups on the first SmolVLA plan (the policy exists then).
+
+    freeze: requires_grad off for all parameters. RTC guidance runs the
+    denoising under enable_grad and records an unused autograd graph:
+    plan 273 -> 204 ms offline, same output.
+    compile_mode: bsp/fast_denoise.py on the denoise step ("default").
+    The first plan then compiles both paths (no guidance, RTC guidance;
+    4-20 s, the robot waits) and the RTC latency tracker drops it: its
+    max would set the delay for the run.
+    """
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).parent.parent / "bsp"))
+    import fast_denoise
+    from lerobot.policies.rtc.latency_tracker import LatencyTracker
+    from lerobot.policies.smolvla import modeling_smolvla as ms
+    orig = ms.SmolVLAPolicy._get_action_chunk
+    skip = [0]
+
+    def chunk(self, *a, **kw):
+        if not getattr(self, "_first_plan_done", False):
+            self._first_plan_done = True
+            if freeze:
+                self.requires_grad_(False)
+            if compile_mode:
+                fast_denoise.enable(self.model, compile_mode)
+                t = time.perf_counter()
+                out = orig(self, *a, **kw)
+                if self._rtc_enabled():  # guidance path: own graph
+                    orig(self, a[0], None, inference_delay=5,
+                         prev_chunk_left_over=out[0, 20:])
+                skip[0] = 1
+                print(f"[compile] first plan {time.perf_counter() - t:.1f}"
+                      " s", flush=True)
+        return orig(self, *a, **kw)
+
+    add = LatencyTracker.add
+
+    def add_skip_compile(self, latency):
+        if skip[0]:
+            skip[0] = 0
+            return
+        add(self, latency)
+
+    ms.SmolVLAPolicy._get_action_chunk = chunk
+    LatencyTracker.add = add_skip_compile
+
+
+def patch_rtc_exact_delay():
+    """RTC queue: skip the actions really used during the plan.
+
+    LeRobot skips real_delay = ceil(latency x fps) actions of the new
+    chunk; this is often 1 more than the arm used, so the arm jumps one
+    action ahead at each switch.
+    """
+    from lerobot.policies.rtc.action_queue import ActionQueue
+    check = ActionQueue._check_and_resolve_delays
+
+    def resolve(self, real_delay, action_index_before_inference=None):
+        if action_index_before_inference is None:
+            return check(self, real_delay)
+        return max(0, self.last_index - action_index_before_inference)
+
+    ActionQueue._check_and_resolve_delays = resolve
+
+
+def patch_debug(path, label=""):
+    """Log the rollout to path (.npz) and print one line per plan.
+
+    plan: start / end time of each SmolVLA chunk (sync and RTC).
+    send: time and joint command of each tick. obs: time and measured
+    joint position. merge (RTC only): real_delay, actions used during
+    the plan, rest of the old chunk, full new chunk. Saved after each
+    plan. Read with rollout_debug.py.
+    """
+    from lerobot.policies.rtc.action_queue import ActionQueue
+    from lerobot.policies.smolvla import modeling_smolvla as ms
+    from lerobot.rollout import context
+    log = {"plan": [], "send": [], "obs": [], "merge": []}
+    keys = []
+
+    def save():
+        arr = {}
+        for name in ("send", "obs"):
+            rows = list(log[name])
+            arr[f"{name}_t"] = np.array([r[0] for r in rows])
+            arr[f"{name}_q"] = np.array([r[1] for r in rows])
+        arr["plan"] = np.array(list(log["plan"]))
+        arr["merge"] = np.array(list(log["merge"]), dtype=object)
+        np.savez(path, keys=np.array(keys), label=label, **arr)
+
+    get_chunk = ms.SmolVLAPolicy._get_action_chunk
+
+    def chunk(self, *a, **kw):
+        t0 = time.perf_counter()
+        out = get_chunk(self, *a, **kw)
+        torch.cuda.synchronize()
+        t1 = time.perf_counter()
+        log["plan"].append((t0, t1))
+        sends = log["send"]
+        gap = (t1 - sends[-1][0]) * 1000 if sends else 0.0
+        print(f"[debug] plan {len(log['plan']):4d}  "
+              f"{(t1 - t0) * 1000:5.0f} ms  last send {gap:5.0f} ms ago",
+              flush=True)
+        save()
+        return out
+
+    merge = ActionQueue.merge
+
+    def logged_merge(self, original, processed, real_delay,
+                     action_index_before_inference=None):
+        old = None if self.queue is None else \
+            self.queue[self.last_index:].float().cpu().numpy()
+        used = -1 if action_index_before_inference is None else \
+            self.last_index - action_index_before_inference
+        merge(self, original, processed, real_delay,
+              action_index_before_inference)
+        log["merge"].append((time.perf_counter(), real_delay, used, old,
+                             processed.float().cpu().numpy()))
+        print(f"[debug]   rtc merge: real_delay {real_delay}  used {used}"
+              f"  old chunk left {0 if old is None else len(old)}",
+              flush=True)
+        save()
+
+    make = context.make_robot_from_config
+
+    def make_logged(cfg):
+        robot = make(cfg)
+        send, observe = robot.send_action, robot.get_observation
+
+        def send_action(action, *a, **kw):
+            if not keys:
+                keys.extend(k for k in action if k.endswith(".pos"))
+            log["send"].append((time.perf_counter(),
+                                [float(action[k]) for k in keys]))
+            return send(action, *a, **kw)
+
+        def get_observation(*a, **kw):
+            obs = observe(*a, **kw)
+            if keys:
+                log["obs"].append((time.perf_counter(),
+                                   [float(obs[k]) for k in keys]))
+            return obs
+
+        robot.send_action, robot.get_observation = send_action, \
+            get_observation
+        return robot
+
+    ms.SmolVLAPolicy._get_action_chunk = chunk
+    ActionQueue.merge = logged_merge
+    context.make_robot_from_config = make_logged
+    import atexit
+    atexit.register(save)
+    print(f"[debug] log -> {path}", flush=True)
 
 
 def start_preview(robot, label=None):
@@ -143,5 +303,13 @@ if __name__ == "__main__":
         patch_smooth(int(os.environ["SMOOTH"]) // 2 * 2 + 1)
     if os.environ.get("PREVIEW", "1") != "0":
         patch_preview()
+    if os.environ.get("FREEZE", "0") != "0" or os.environ.get("COMPILE"):
+        patch_first_plan(os.environ.get("FREEZE", "0") != "0",
+                         os.environ.get("COMPILE"))
+    if os.environ.get("RTC_EXACT_DELAY", "0") != "0":
+        patch_rtc_exact_delay()
+    if os.environ.get("ROLLOUT_DEBUG"):
+        patch_debug(os.environ["ROLLOUT_DEBUG"],
+                    os.environ.get("ROLLOUT_DEBUG_LABEL", ""))
     from lerobot.scripts.lerobot_rollout import main
     main()

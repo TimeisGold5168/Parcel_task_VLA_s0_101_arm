@@ -6,6 +6,7 @@
 #   diffusion = Diffusion 80k on parcel-sort-a (DDIM 10 steps)
 #   smolvla   = SmolVLA 20k on parcel-sort-a
 #   smolvla80k = SmolVLA 80k on parcel-sort-a
+#   diffusion_b, smolvla_b = Diffusion 80k, SmolVLA 80k on parcel-sort-b
 # Default (RECORD=0): one attempt, no recording, preview window
 #   (LeRobot base strategy). Example: run_parcel.sh smolvla
 # RECORD=1: episodes saved to a dataset, preview window, keys below.
@@ -19,9 +20,15 @@
 # ROLLOUT_ARGS="--policy.x=y ..." adds overrides, for example
 #   ROLLOUT_ARGS="--policy.num_inference_steps=100
 #     --policy.noise_scheduler_type=DDPM" (training sampler, slow).
+# SmolVLA speed and debug (env, see rollout_mixed.py):
+#   DEBUG=1 LABEL=<name>  log to debug_logs/<name>_<time>.npz and print
+#     one line per plan; compare with rollout_debug.py debug_logs/*.npz
+#   FREEZE=1  no autograd in RTC guidance (same output, ~70 ms faster)
+#   COMPILE=default  compiled denoise step (first plan 4-20 s)
+#   RTC_EXACT_DELAY=1  RTC skips the actions really used in the plan
 set -euo pipefail
 
-MODEL=${1:?model: diffusion, smolvla, smolvla80k}
+MODEL=${1:?model: diffusion, smolvla, smolvla80k, diffusion_b, smolvla_b}
 COND=${2:-test}
 EPISODES=${3:-1}
 TASK="sort the parcel so the label faces down and push it off the table"
@@ -31,15 +38,18 @@ PY=/home/zhenting.lee/miniforge3/envs/lerobot/bin/python
 
 EXTRA=()
 case "$MODEL" in
-  diffusion)
-    POLICY=$TRAIN/diffusion_parcel_a1_80k/checkpoints/last/pretrained_model
+  diffusion|diffusion_b)
+    RUN=diffusion_parcel_a1_80k
+    [ "$MODEL" = diffusion_b ] && RUN=diffusion_parcel_b_80k
+    POLICY=$TRAIN/$RUN/checkpoints/last/pretrained_model
     # DDPM 100 steps = 0.8 s per plan; DDIM 10 steps = about 0.1 s
     EXTRA=(--policy.noise_scheduler_type=DDIM
            --policy.num_inference_steps="${STEPS:-10}")
     ;;
-  smolvla|smolvla80k)
+  smolvla|smolvla80k|smolvla_b)
     RUN=smolvla_parcel_a1_20k
     [ "$MODEL" = smolvla80k ] && RUN=smolvla_parcel_a1_80k
+    [ "$MODEL" = smolvla_b ] && RUN=smolvla_parcel_b_80k
     POLICY=$TRAIN/$RUN/checkpoints/last/pretrained_model
     MAP='{"observation.images.top": "observation.images.camera1",'
     MAP+=' "observation.images.wrist": "observation.images.camera2",'
@@ -51,6 +61,15 @@ case "$MODEL" in
   *) echo "unknown model $MODEL"; exit 1 ;;
 esac
 export PREVIEW_LABEL="$MODEL $COND"
+if [ "${DEBUG:-0}" != 0 ]; then
+  mkdir -p "$HERE/debug_logs"
+  LABEL=${LABEL:-$MODEL}
+  export ROLLOUT_DEBUG=$HERE/debug_logs/${LABEL}_$(date +%Y%m%d_%H%M%S).npz
+  export ROLLOUT_DEBUG_LABEL=$LABEL
+  echo "debug: $ROLLOUT_DEBUG (args: ${ROLLOUT_ARGS:-none}," \
+    "smooth=${SMOOTH:-7} freeze=${FREEZE:-0} compile=${COMPILE:-off}" \
+    "exact_delay=${RTC_EXACT_DELAY:-0})"
+fi
 if [[ -n "${ROLLOUT_ARGS:-}" ]]; then
   read -r -a _args <<< "$ROLLOUT_ARGS"
   EXTRA+=("${_args[@]}")

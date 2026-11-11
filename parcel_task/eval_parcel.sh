@@ -8,7 +8,8 @@
 #   model     diffusion | smolvla | smolvla80k (see run_parcel.sh) |
 #             diffusion_bsp | smolvla_bsp (run_bsp_parcel.py: asks s/f
 #             per episode, no dataset; --no-record and --reset do not
-#             apply)
+#             apply). Dataset B models: diffusion_b, smolvla_b,
+#             diffusion_bsp_b, smolvla_bsp_b
 #   --level   easy:   2-3 parcels, near the flip-zone side of the stack
 #                     zone, mid reach, not at the zone edge
 #             medium: 3-4 parcels, anywhere inside the stack zone
@@ -28,6 +29,10 @@
 #   --fixed-noise  BSP models only: one start noise per episode
 #   --steps     BSP models only: denoising steps per plan (SmolVLA flow
 #               steps or Diffusion DDIM steps; default 10)
+#   --max-step  BSP models only: max joint change per control tick
+#               (deg, default 4; 6 = faster switch jumps, 8 at 2.5x+)
+#   --compile   smolvla_bsp only: off (default), default or
+#               reduce-overhead (compiled denoise step, 3 warm-up plans)
 #   --debug     BSP models only: ep<n>_debug.npz per episode (timing,
 #               margin, seam jumps, arm lag); read with
 #               bsp/diagnose_bsp.py <run folder>
@@ -69,6 +74,8 @@ while [ $# -gt 0 ]; do
     --blend) BSP_ARGS+=(--blend "$2"); shift 2 ;;
     --fixed-noise) BSP_ARGS+=(--fixed-noise); shift ;;
     --debug) BSP_ARGS+=(--debug); shift ;;
+    --compile) BSP_ARGS+=(--compile "$2"); shift 2 ;;
+    --max-step) BSP_ARGS+=(--max-step "$2"); shift 2 ;;
     --steps) BSP_ARGS+=(--flow-steps "$2" --ddim-steps "$2"); shift 2 ;;
     --no-record) NO_RECORD=1; shift ;;
     --time) export EP_TIME=$2; shift 2 ;;
@@ -91,7 +98,7 @@ case "$LEVEL" in
 esac
 EPISODES=${EPISODES:-${PARCELS:-3}}
 
-if [ "$MODEL" = diffusion_bsp ] || [ "$MODEL" = smolvla_bsp ]; then
+if [[ "$MODEL" == *_bsp || "$MODEL" == *_bsp_b ]]; then
   # own executor (no LeRobot dataset): results_bsp_parcel.csv + videos
   exec "$PY" "$HERE/run_bsp_parcel.py" --model "$MODEL" --level "$LEVEL" \
     --episodes "$EPISODES" --duration "${EP_TIME:-90}" --speed "$SPEED" \
@@ -136,7 +143,15 @@ case "$MODEL" in
              SET="smooth ${SMOOTH:-7}" ;;
   smolvla80k) CKPT=smolvla_parcel_a1_80k/last
              SET="smooth ${SMOOTH:-7}" ;;
+  diffusion_b) CKPT=diffusion_parcel_b_80k/last
+             SET="DDIM ${STEPS:-10} steps" ;;
+  smolvla_b) CKPT=smolvla_parcel_b_80k/last
+             SET="smooth ${SMOOTH:-7}" ;;
 esac
+[ -n "${ROLLOUT_ARGS:-}" ] && SET="$SET; ${ROLLOUT_ARGS//,/;}"
+[ "${FREEZE:-0}${RTC_EXACT_DELAY:-0}${COMPILE:-}" != 00 ] && \
+  SET="$SET; freeze ${FREEZE:-0} exact ${RTC_EXACT_DELAY:-0}\
+ compile ${COMPILE:-off}"
 SET="$SET; ${EP_TIME:-90} s"
 LOG=$ROOT/eval_log.csv
 if [ "$AFTER" -gt "$BEFORE" ]; then

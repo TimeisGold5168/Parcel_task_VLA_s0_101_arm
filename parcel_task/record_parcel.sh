@@ -12,10 +12,19 @@
 # keys work only while the preview window has the focus.
 # Episode flow: home > push > Space > flip > Space > exit push > home.
 # If the label is down: home > push > Space > exit push > home.
+# STAGE=b: dataset B (Low101/parcel-sort-b, schedule_B.csv), grasp
+# approach: ready pose > grasp > pull (+ flip if label up) > release
+# label down in the flip zone > Space > exit push > ready pose.
 set -euo pipefail
 
 BLOCK=${1:?usage: record_parcel.sh <block> [episodes]}
+STAGE=${STAGE:-full}
 SCHED=$(dirname "$0")/schedule_A1.csv
+if [ "$STAGE" = b ]; then
+  SCHED=$(dirname "$0")/schedule_B.csv
+  REPO=${REPO:-Low101/parcel-sort-b}
+  EP_TIME=${EP_TIME:-60}
+fi
 HEAP_N=$(awk -F, -v b="$BLOCK" 'NR > 1 && $1 == b' "$SCHED" | wc -l)
 N_HEAPS=$(awk -F, 'NR > 1 { print $1 }' "$SCHED" | sort -n | tail -1)
 [ "$HEAP_N" -gt 0 ] || { echo "heap $BLOCK not in $SCHED"; exit 1; }
@@ -82,7 +91,12 @@ awk -F, -v b="$BLOCK" '
   END { print "  Build the heap with:"
         for (k in n) printf "    %d %s  (%d label up, %d label down)\n",
                             n[k], k, u[k], n[k] - u[k] }' "$SCHED"
-echo "  Space at the end of push, and at the end of flip (label up only)."
+if [ "$STAGE" = b ]; then
+  echo "  Start and end each episode at the same ready pose."
+  echo "  Space when the parcel is released label down in the flip zone."
+else
+  echo "  Space at the end of push, and at the end of flip (label up only)."
+fi
 echo "  Click the preview window first: keys work only there."
 read -rp "Heap built as listed? Press Enter to start. "
 
@@ -105,7 +119,7 @@ RECORD=(python "$(dirname "$0")/record_preview.py")
   --dataset.single_task="$TASK" \
   --dataset.num_episodes="$EPISODES" \
   --dataset.episode_time_s="${EP_TIME:-120}" \
-  --dataset.reset_time_s=10 \
+  --dataset.reset_time_s="${RESET_TIME:-10}" \
   --dataset.push_to_hub=false \
   --dataset.streaming_encoding=true \
   --dataset.encoder_queue_maxsize=150 \
@@ -114,4 +128,7 @@ RECORD=(python "$(dirname "$0")/record_preview.py")
 echo "$(date +%F_%T) block $BLOCK episodes $EPISODES" \
   >> "$(dirname "$0")/record_log.txt"
 
-python "$(dirname "$0")/check_episodes.py" --root "$ROOT" --from "$FIRST_EP"
+CHECK=()
+[ "$STAGE" = b ] && CHECK=(--home median)
+python "$(dirname "$0")/check_episodes.py" --root "$ROOT" --from "$FIRST_EP" \
+  "${CHECK[@]}"

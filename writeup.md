@@ -701,6 +701,163 @@ limit is about 1.8-3x; use 1.5x or less. The debug logs
 holds. Details, the time profile and the ways to plan faster:
 `bsp/README.md`, section 4.
 
+### Faster inference: compiled denoising and RTC
+
+Goal: shorter SmolVLA plans with the same output. Then no stops and
+smooth chunk switches for the normal SmolVLA.
+
+#### Procedure
+
+We used a standard performance procedure. Each step uses the result
+of the step before it.
+
+1. Set the metric: plan time p50 and p95, and the output against a
+   saved eager reference.
+2. Make a repeatable benchmark (`bsp/bench_plan.py`): fixed frames,
+   fixed noise, warm-up, CUDA sync, 30-40 repeats.
+3. Measure the noise floor. Two eager runs give a difference of 0.
+   The plan time changes by about 15% between processes (laptop GPU
+   clock), so small gains need repeated runs.
+4. Profile. Each denoising step launches about 1,215 small kernels.
+   The GPU works for 3.2 ms of the 10-13 ms step, so the CPU launches
+   are the bottleneck.
+5. Find the limit before you write code: about 3.2 ms for each step.
+6. Try the smallest change first, and read the compiler logs
+   (`TORCH_LOGS="graph_breaks,recompiles"`).
+7. Change one thing at a time, and measure after each change.
+8. Put each change behind a flag, with the old path as the default.
+9. Test offline (error in degrees), then on the robot (debug logs).
+
+#### Compiled denoising step (`bsp/fast_denoise.py`)
+
+Plain `torch.compile` on `denoise_step` failed in two ways:
+
+- Recompile: `DynamicCache.crop()` changes the memory stride of the
+  cache tensors after each step.
+- Overwritten memory: the cache keeps a view of CUDA graph memory, and
+  the next replay writes over it. PyTorch stops with an error. Without
+  this check, the robot would get wrong actions.
+
+The fix is `StaticPrefixCache`. It keeps the prefix K/V in fixed
+buffers that the step only reads. `update()` returns
+[prefix; suffix] and stores nothing, so `crop()` has nothing to undo.
+The LeRobot source does not change.
+
+SmolVLA-BSP (16 actions), cost of one step from the plan time at 1
+and 10 steps:
+
+| Variant | One step | Plan p50 / p95 (10 steps) |
+|---|---|---|
+| Eager | 13.2 ms | 236 / 333 ms |
+| Static cache + `torch.compile` default | 3.4 ms | 144 / 157 ms |
+| + `reduce-overhead` (CUDA graph) | 3.1 ms | 136 / 148 ms |
+
+- The step is now at the GPU limit from the profile (3.2 ms).
+- Kernel fusion gives most of the gain. The CUDA graph adds 0.3 ms.
+- Accuracy is the same. The offline error on episode 45 is 2.859 deg
+  (eager) and 2.858 deg (compiled). The maximum difference from eager
+  is 0.106 deg, about one servo step (0.088 deg).
+- Now the vision encoder and the prefix pass take about 95 of the
+  136 ms. They are the next bottleneck.
+- `run_bsp_parcel.py --compile default` uses this. The runner plans 3
+  times before the first episode, because the first plan compiles
+  (4-20 s).
+
+#### Normal SmolVLA 80k with RTC
+
+The normal SmolVLA uses synchronous inference: the arm stops for each
+new chunk of 50 actions. LeRobot's RTC engine
+(`--inference.type=rtc`) plans in a background thread while the arm
+runs the current chunk.
+
+We found three problems in the RTC path:
+
+- Autograd overhead. RTC guidance runs the denoising under
+  `enable_grad`, and all parameters have `requires_grad=True`. So
+  PyTorch records an autograd graph that it never uses. `FREEZE=1`
+  turns this off. The plan goes from 273 to 204 ms offline, with the
+  same output.
+- Delay off by one. The queue skips `ceil(latency x 30)` actions of
+  the new chunk. This is often 1-2 more than the arm used, so the arm
+  jumps ahead at each switch. `RTC_EXACT_DELAY=1` skips the actions
+  really used.
+- Compile outlier. The latency tracker keeps its all-time maximum.
+  One slow compile plan would set the delay for the full run. The
+  guidance path also compiles a second graph. `COMPILE=default`
+  compiles both paths before the robot moves, and the tracker drops
+  that plan.
+
+Offline plan time (chunk 50, 10 flow steps):
+
+| Variant | Plan p50 / p95 |
+|---|---|
+| Sync, eager | 182 / 187 ms |
+| Sync, compiled | 142 / 154 ms |
+| RTC, eager | 273 / 299 ms |
+| RTC + freeze | 204 / 221 ms |
+| RTC + freeze + compiled | 144 / 156 ms |
+| RTC + freeze + compiled, 5 flow steps | 123 / 135 ms |
+
+Robot results (easy level, one run for each variant, `SMOOTH=7`,
+`execution_horizon=10`, `queue_threshold=30`). "Accel" is the 2nd
+difference of the arm joints (deg per tick, p95). "Switch" means the
+3 ticks after a new chunk starts.
+
+| | sync | rtc | rtc_fix | rtc_fast | rtc_fast5 |
+|---|---|---|---|---|---|
+| Settings | - | RTC | + freeze, exact delay | + compile | + 5 steps |
+| Pause time | 11.9% (38 stops) | 0.3% | 0-0.1% | 0% | 0% |
+| Plan p50 / p95 (ms) | 190 / 223 | 300 / 350 | 215 / 270 | 142 / 158 | 123 / 141 |
+| Actions used during a plan | - | 9 | 6 | 4 | 4 |
+| Command accel, switch / inside | 7.3x | 3.0x | 1.1-1.6x | 1.1x | 1.1x |
+| Measured accel at switch | 3.48 | 1.3 | 0.6-0.7 | 0.62 | 0.53 |
+| RTC guidance error p95 (deg) | - | 5.6 | 1.4-1.7 | 0.8 | 1.6 |
+
+- The arm moves at the same speed in all runs. Each action is one
+  30 Hz demo frame, so the demo speed sets the motion speed.
+- Sync mode stops 38 times (12% of the run). RTC removes the stops,
+  so the task ends sooner.
+- With plain RTC, the delay (9-10 actions) almost fills the
+  `execution_horizon` (10), so the guidance error is large (5.6 deg).
+- With `rtc_fast`, the delay is 4 actions and the switches are
+  smooth (1.1x). The new chunk also starts from a newer camera image
+  (0.13 s old, not 0.33 s).
+- 5 flow steps save 20 ms more, but the guidance error doubles. We
+  keep 10 steps.
+- Limit: one run for each variant, with different motions. Only the
+  large differences are clear.
+- Our first RTC test used `SMOOTH=0`, but the sync default is
+  `SMOOTH=7`. That test changed two things, so its jerk did not show
+  the RTC effect.
+
+Default from now on (`rtc_fast`):
+
+```bash
+RTC="--inference.type=rtc --inference.rtc.execution_horizon=10 \
+  --inference.queue_threshold=30"
+FREEZE=1 RTC_EXACT_DELAY=1 COMPILE=default ROLLOUT_ARGS="$RTC" \
+  bash outputs/portfolio/parcel_task/run_parcel.sh smolvla80k test
+```
+
+`DEBUG=1 LABEL=<name>` writes a log to `parcel_task/debug_logs/`.
+`parcel_task/rollout_debug.py debug_logs/*.npz` compares the logs.
+
+#### Lessons
+
+- Profile first. The step looked slow because of GPU math, but the
+  real cause was CPU launch overhead.
+- Find the limit first. It tells you when to stop.
+- Measure the noise floor of the timing and of the output before you
+  compare.
+- Read the compiler logs. A graph break or a recompile can remove the
+  gain with no error.
+- Faster inference does not make the arm move faster. It removes stops
+  and makes the switches smooth. A faster motion needs time scaling
+  (BSP `--speed`) or faster demos.
+- Look at the full path, not only the model. Two of the three RTC
+  problems were in the engine (autograd and delay), not in the
+  network.
+
 ### New pull approach (pilot)
 
 The push from the stack zone is not consistent in the demos. The
@@ -735,14 +892,357 @@ models retry.
 
 ![Grasp pilot, joints](parcel_task/figures/grasp_pilot_joints.png)
 
+### Dataset B (`Low101/parcel-sort-b`, private)
+
+Dataset B uses the grasp method of the pilot for all parcels.
+
+- 99 episodes, 73,444 frames, 30 fps, 3 cameras. We removed one
+  episode (old episode 88), because the operator grasped the parcel
+  again after the release.
+- 20 heaps. Each heap starts with 4-5 parcels. One episode sorts one
+  parcel.
+- Procedure: home pose, grasp from the stack, pull (and flip if the
+  label is up), release with the label down, Space mark, exit push.
+- 61 episodes have a flip and 38 have no flip. We found the kind from
+  the wrist roll range before the mark (threshold 135 deg).
+- About 25 s for each parcel.
+
+Each heap starts with a pile, and the operator takes the top parcel
+first. We looked at the first frame of all 99 episodes:
+
+| Start state | Episodes (about) |
+|---|---|
+| A bag on a bag | 25 |
+| A box on a bag | 5 (16, 35, 56, 65, 66) |
+| A box on a box | 5 (40, 75, 76, 80, 81) |
+| No parcel on another | 65 |
+
+No episode starts with the black box on the yellow box.
+
+![Dataset B, start frames with stacked parcels](parcel_task/figures/b_train_stack_starts.jpg)
+
+#### Models (dataset B)
+
+All four trained one after the other on the laptop GPU
+(`parcel_task/queue_b.sh`).
+
+| Model | Start from | Steps | Time | Final loss |
+|---|---|---|---|---|
+| `smolvla_parcel_b_80k` | `lerobot/smolvla_base` | 80k | 27.4 h | 0.025 |
+| `smolvla_bsp_parcel_b_40k` | `smolvla_parcel_b_80k` | 40k | 13.8 h | 0.100 |
+| `diffusion_parcel_b_80k` | scratch | 80k | 9.4 h | 0.005 |
+| `diffusion_bsp_parcel_b_40k` | `diffusion_parcel_b_80k` | 40k | 5.1 h | 0.018 |
+
+- SmolVLA 80k uses `--policy.scheduler_decay_steps=80000`. Without
+  it, the cosine schedule ends at 30k.
+- `bsp/train_bsp.py` now casts the warm-start weights to the dtype of
+  the `--init` checkpoint. Before the fix, the SmolVLA VLM was float32,
+  not bf16.
+
+#### Offline evaluation (dataset B)
+
+Script: `parcel_task/offline_eval_b.py`. Results:
+`parcel_task/offline_eval_b/`.
+
+Test 1 is the action error (deg, 5 arm joints, next 1 s). Test 2 is
+the flip decision on the 99 training episodes (probe on the demo
+futures: 95/99). Test 3 is the image swap: the share of predictions
+that follow the swapped images.
+
+| Model | Test 1, training ref | Test 1, held-out | Test 2 (of 99) | Test 3, flip images | Test 3, no-flip images |
+|---|---|---|---|---|---|
+| SmolVLA B 80k | 1.91 | 11.44 | 95 | 0.39 | 0.90 |
+| SmolVLA-BSP B | 2.39 | 12.04 | 93 | 0.29 | 0.92 |
+| Diffusion B | 2.02 | 11.56 | 95 | 0.47 | 0.95 |
+| Diffusion-BSP B | 3.08 | 12.40 | 91 | 0.61 | 1.00 |
+
+- The held-out episodes are old pilot episodes. Their approach is
+  different, so the held-out error is high for all models.
+- Test 3, flip images: the arm state is from a no-flip episode, and
+  the images show a label up. Only 0.29-0.61 of the predictions
+  change to a flip. Thus a missed flip is more likely than a wrong
+  flip.
+
+#### Robot results, easy level (dataset B)
+
+Scene: a black bag and a yellow box, both with the label up, not on
+each other. One heap for each model. We checked each episode in the
+video.
+
+| Model | Parcels sorted | Total time | Problems |
+|---|---|---|---|
+| SmolVLA-BSP B, 1.5x | 2/2 | 59 s | 27 s stop at the start |
+| SmolVLA B, RTC | 2/2 | 73 s | One failed flip; the model found the bag again and flipped it |
+| Diffusion-BSP B, 1.5x | 2/2 | 85 s | 45 s above the yellow box before the grasp |
+| Diffusion B | 1/4 (2 heaps) | 52 s + 70 s | 6 missed grasps |
+
+![SmolVLA-BSP B, black bag in 13.6 s](parcel_task/figures/b_easy_smolvla_bsp_black_bag.jpg)
+
+- The BSP models flip the black bag in 14-18 s. The demos take about
+  25 s.
+- The yellow box is the slow parcel for three models.
+- Diffusion B closes the gripper next to the parcel (wrist camera).
+
+![Diffusion B, the gripper closes next to the bag](parcel_task/figures/b_easy_diffusion_grasp_miss.jpg)
+
+#### Robot results, stacked parcels (dataset B, medium level)
+
+Scene: 4 parcels in two piles. The white bag is on the black bag (a
+bag on a bag). The black box is on the yellow box (a box on a box).
+Mixed labels. One heap for each model. Diffusion B was not tested.
+
+| Model | Bag on bag | Box on box | Correct, no help |
+|---|---|---|---|
+| SmolVLA B, RTC (87 s) | Both correct. Two missed grasps on the white bag | Pushed off as one stack. Black box label up | 2/4 |
+| SmolVLA-BSP B, 1.5x (141 s) | Both correct. A person put the white bag back once | Black box correct. Yellow box after 60 s of retries, label up | 2/4 (+1 with help) |
+| Diffusion-BSP B, 1.5x (49 s) | White bag correct. Black bag flipped, but the exit push missed | Black box correct. The yellow box fell onto the table; the model did not go to it | 2/4 |
+
+![SmolVLA B moves the two boxes as one stack](parcel_task/figures/b_medium_smolvla_box_stack.jpg)
+
+![Diffusion-BSP B lifts the black box, and the yellow box falls](parcel_task/figures/b_medium_diffusion_bsp_box_stack.jpg)
+
+Findings:
+
+- **The bag-on-bag pile works.** All three models took the top bag
+  first. About 25 training episodes have this start state.
+- **The box-on-box pile fails with all three models.** The training
+  data has only about 5 box-on-box starts, and none with this pair.
+  The models do not know how to separate two boxes:
+  - SmolVLA B grasped both boxes and pushed them off as one stack.
+  - SmolVLA-BSP B pulled the yellow box out from under the black box
+    after 60 s, and released it with the label up.
+  - Diffusion-BSP B dropped the yellow box on the table. The models
+    did not see a parcel alone on the table in the demos, so it did
+    not go to it.
+- **Few demos for a state give no skill for that state.** The fix is
+  more demos of the failed states, not more training steps.
+- In SmolVLA-BSP episode 0, the model pulled the white bag to the
+  stack edge. A person put the bag back at 22-25 s. The results file
+  shows a success, but the episode had help.
+
+![SmolVLA-BSP B, a person puts the white bag back](parcel_task/figures/b_medium_smolvla_bsp_hand_reset.jpg)
+
+#### Robot results, 5-parcel heap (dataset B, hard level)
+
+Scene: one heap of 5 parcels, like the training heaps. Bags on bags,
+no box on a box. Parcels: black bag, black box, white bag, small
+labelled orange box, plain orange box (label down). Mixed labels.
+One heap for each model. The BSP runs use one episode for each
+parcel. The SmolVLA RTC run uses one episode for the full heap, with
+a 240 s limit.
+
+| Model | Cleared | Run time | Labels correct |
+|---|---|---|---|
+| Diffusion-BSP B, 1.5x | 5/5 | 86 s (15-23 s for each parcel) | 5/5 |
+| SmolVLA-BSP B, 1.5x | 4/5 | 219 s | 4/4 |
+| SmolVLA B, RTC | 3/5 | 231 s (time limit) | 3/3 |
+
+![Diffusion-BSP B, stack zone at the start and end of each episode](parcel_task/figures/b_heap5_diffusion_bsp_zone.jpg)
+
+Findings:
+
+- **Diffusion-BSP B cleared the heap with no stops.** It flipped the
+  labelled orange box (the label is up when the gripper holds the
+  box, and the tape side is up after the release). It pushed the
+  plain orange box with no flip, which is correct.
+- **SmolVLA-BSP B did not grasp the small boxes.** In episode 2, the
+  arm stayed at home for 27 s. Then it moved above the two small
+  orange boxes for 50 s and pushed them a little, but the gripper did
+  not close. The small labelled orange box stayed on the tray at the
+  end. Episodes 0-2 also start with 17-27 s with no motion.
+- **SmolVLA B (RTC) cleared 3 parcels in 231 s.** It moved above the
+  black box for 75 s before the grasp. At the time limit, the small
+  labelled orange box and the white bag stayed on the tray.
+- **The SmolVLA problem is the grasp decision, not the motion.** All
+  the flips that the SmolVLA models did were correct. The time loss
+  is in the wait at home and in the hover before the grasp.
+- The heap layout was not the same for each model, and there was one
+  heap for each model. Thus, this result is an indication, not a
+  controlled comparison.
+
+![Diffusion-BSP B flips the labelled orange box](parcel_task/figures/b_heap5_diffusion_bsp_flip.jpg)
+
+![SmolVLA-BSP B, wrist camera: hover above the small boxes, no grasp](parcel_task/figures/b_heap5_smolvla_bsp_hover.jpg)
+
+#### Robot results, 8-parcel heap (dataset B, hard level)
+
+Scene: one heap of 8 parcels. The heap is wider than the training
+heaps. Some parcels are at the far edge of the tray, and one orange
+box is on another orange box. The BSP runs use one episode for each
+parcel (8 episodes, 90 s each). The SmolVLA RTC run uses one episode
+for the full heap, with a 400 s limit.
+
+| Model | Success (log) | Success, no help | Main failure |
+|---|---|---|---|
+| Diffusion-BSP B, 1.5x | 6/8 | 5/8 | stops at the far edge |
+| SmolVLA-BSP B, 1.5x | 3/8 | 1/8 | push moves other parcels |
+| SmolVLA B, RTC | 8/8 in 341 s | - | black box as a bag |
+
+"Success, no help" counts the episodes with no hand in the frames.
+For the RTC run, the help events in the 341 s video are not counted.
+The episode numbers below start at 0 (file `ep<n>`). The terminal
+shows the number + 1.
+
+Findings:
+
+- **Diffusion-BSP B stops in front of parcels at the far edge.** In
+  episode 2, the arm went to the black box and the orange boxes at
+  the far edge in 6 s. Then it stayed there for 75 s with the gripper
+  open, and did not grasp. In episode 3, the arm stayed in the same
+  pose for 17 s. A hand pushed the black box closer at 23-29 s, and
+  the arm grasped it at once. The model finds the parcel, but it does
+  not do the last part of the reach.
+- **The cause is few demos, not the joint limit.** The command in
+  the hover pose is shoulder lift 45-49 deg and elbow 0-8 deg. The
+  arm can go farther: the demos go to shoulder lift 70 deg and elbow
+  -42 deg. But only 14 of 99 episodes in dataset B reach this far in
+  the stack zone (3.5 % of the stack-zone frames). Thus, the model
+  has few examples of a grasp at this distance.
+- **SmolVLA-BSP B moves other parcels when it pushes.** In episodes
+  1, 2 and 4, the push moved other parcels from the tray to the
+  table. At the start of episodes 5-7, all the parcels were on the
+  table. This start state is not in the demos. Only episode 3 took a
+  parcel from the tray and pushed it off with no help. In episode 6,
+  a hand moved the black box at 30 s. In episode 0, the black bag
+  stopped in the middle of the table (fail at the exit).
+- **The models use the bag push on the black box.** SmolVLA B (RTC)
+  closed the gripper and pushed the labelled black box to the side at
+  210-216 s. This is the bag action. The box action is a grasp, and a
+  flip if the label is down. The operator saw the same error with
+  all three models. The black box and the black bags have the same
+  colour, and the top camera image is small.
+- **No model clears 8 parcels with no help.** The 8-parcel heap is
+  not a good benchmark heap. Use it later as a test for DAgger (item
+  9).
+
+![Diffusion-BSP B episode 3: hover at the far edge, a hand pushes the box closer, then the grasp](parcel_task/figures/b_heap8_diffusion_bsp_far_edge.jpg)
+
+![SmolVLA-BSP B, start and end of episodes 0-3: parcels move from the tray to the table](parcel_task/figures/b_heap8_smolvla_bsp_scatter.jpg)
+
+![SmolVLA B (RTC), 207-222 s: a side push with the gripper closed on the black box](parcel_task/figures/b_heap8_smolvla_black_box_push.jpg)
+
+Recordings: `Low101/rollout_eval_parcel_<model>_<level>` (LeRobot
+models) and `bsp/runs/<model>_parcel_<level>_<time>/` (BSP models).
+
 ## Next steps
 
 1. Run the offline evaluation and the robot tests on SmolVLA 80k and
    SmolVLA-BSP.
-2. Add SmolVLA-BSP to `run_bsp_parcel.py`.
-3. Do fair robot comparisons: Diffusion-BSP at 1x, and the medium and
+2. Test SmolVLA-BSP on the robot with `--compile default` at 1x, 1.5x
+   and 2x. Then read the margin with `bsp/diagnose_bsp.py`.
+3. Test time scaling for SmolVLA with RTC (for example, 36 Hz for
+   1.2x). Then compare the success rate.
+4. Do fair robot comparisons: Diffusion-BSP at 1x, and the medium and
    hard levels.
-4. Record the grasp-based pull in full episodes. Then retrain the
+5. Record the grasp-based pull in full episodes. Then retrain the
    pull skill.
-5. DAgger (human corrections) after the approach change.
-6. RL (HIL-SERL), if time allows.
+6. DAgger (human corrections) after the approach change.
+7. RL (HIL-SERL), if time allows.
+8. Dataset B, robot test on training-like heaps: 5 parcels, with
+   bags on bags and no box on a box. Then heaps of 7-8 parcels, to
+   see whether the models can clear a larger heap.
+9. DAgger with a human in the loop (HIL) for the failed states of
+   dataset B: a box on a box, a parcel alone on the table, and a
+   parcel at the stack edge. The policy runs, and the operator takes
+   control with the leader arm when the policy goes wrong. Then
+   fine-tune on the corrections, so that the actions in these states
+   become possible for the policy.
+10. Export the models to TensorRT or ONNX Runtime (FP16). Start with
+    the Diffusion U-Net (plan 85-93 ms), then the SmolVLA action
+    expert (plan about 200 ms). Keep the Python caller. Use the same
+    procedure as the compiled denoising step: benchmark with
+    `bsp/bench_plan.py`, compare the output in degrees, then test on
+    the robot. Put the new engine behind a flag. Target: a plan time
+    1.5-3x shorter.
+11. Move the control loop to a C++ process. The process owns the
+    Feetech servo bus and runs the B-spline loop at a fixed rate.
+    Python sends each new plan through shared memory or ZeroMQ. This
+    removes the GIL contention between the planner thread and the
+    control thread in `run_bsp_parcel.py`. Measure the tick jitter
+    (p50, p95, max) before and after. Target: smoother motion at 2x.
+12. Look at the other processes for the same type of gain:
+    - Camera capture and image preparation in a separate process,
+      with the newest frame in shared memory.
+    - Video encode and dataset write out of the control path during
+      recording.
+    - A C++ or Rust servo driver with sync read and sync write, to
+      cut the bus time for each tick.
+    Profile each process first. Change a process only if the profile
+    shows that it causes a delay or jitter.
+13. Do not rewrite the full project in Rust or C++. Training,
+    datasets and the Hugging Face Hub stay in Python. The GPU sets
+    the plan time, and the cameras and servo bus set the loop limits.
+14. Benchmark after each of items 10-12 with the rule below. Record
+    the gain of each item against the same reference.
+15. Find a benchmark heap that all models clear. Start with 4
+    parcels. If a model fails, try 3 parcels. Use bags on bags, no
+    box on a box, and no small labelled orange box (the SmolVLA
+    models do not grasp it on the 5-parcel heap). From the 8-parcel
+    heap, two more rules:
+    - Keep all parcels at least one box width from the far edge and
+      the right edge of the tray. The models do not grasp at the far
+      edge.
+    - Do not put the black box in the benchmark heap. The models
+      use the bag push on it.
+
+    Candidate heaps:
+    - Heap of 4: white bag, black bag on the white bag, orange box
+      label up, orange box label down (one flip).
+    - Heap of 3: the same heap with no label-up orange box.
+
+    Take a photo of the heap and mark the parcel positions on the
+    tray. Then all later robot tests (items 10-12, DAgger, new
+    models) use this same heap, so that the results are comparable.
+    - Run each model 3 times on the heap.
+    - The heap is good if each model clears all parcels in 3 of 3
+      runs, with no help.
+    - Record the time for each parcel and the label result for each
+      model. These numbers are the robot reference.
+
+### Benchmark rule for items 10-12
+
+Measure every change against one fixed reference. Then the record
+shows the gain of each item, and the gain of items 11 and 12 is not
+mixed with the gain of item 10.
+
+1. Before item 10, record the reference with the current code: same
+   checkpoint, same frames, same robot setup, same flags.
+2. Save the reference numbers in the table below, with the git commit
+   and the command.
+3. Make one change only.
+4. Run the same benchmark again. Measure the noise floor first (two
+   runs with no change).
+5. If the output error is larger than the limit, stop and fix the
+   change before the robot test.
+6. Run the robot test on the benchmark heap (item 15).
+7. Add one row to the table. Write "no gain" if the gain is in the
+   noise floor.
+8. Keep the change behind a flag. The next item starts from the best
+   row so far, but the table also keeps the gain against the
+   reference.
+
+Metrics:
+
+| Area | Metric | Tool |
+|---|---|---|
+| Plan | plan time p50, p95 (ms) | `bsp/bench_plan.py` |
+| Plan | output error against the PyTorch output (deg) | `bsp/bench_plan.py` |
+| Plan | GPU memory (MB) | `bsp/bench_plan.py` |
+| Control | tick period p50, p95, max (ms); late ticks (%) | debug log |
+| Control | servo bus time for each tick (ms) | debug log |
+| Control | direction reversals per second | `bsp/diagnose_bsp.py` |
+| Camera | frame age at plan start (ms) | debug log |
+| Robot | success, time to done (s) at 1x, 1.5x, 2x | `results_bsp_parcel.csv` |
+
+Results (fill in after each item). Units: plan and tick in ms, error
+in deg, done in s. "Gain" is against the reference row.
+
+| Item | Change | Plan p50/p95 | Err | Tick p95/max | Rev/s | Done | Gain |
+|---|---|---|---|---|---|---|---|
+| ref | current code | | 0 | | | | - |
+| 10a | Diffusion, TensorRT/ONNX | | | | | | |
+| 10b | SmolVLA, TensorRT/ONNX | | | | | | |
+| 11 | C++ control process | | | | | | |
+| 12a | camera process | | | | | | |
+| 12b | recording out of control path | | | | | | |
+| 12c | servo driver, sync read/write | | | | | | |

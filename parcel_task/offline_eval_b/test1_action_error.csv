@@ -1,0 +1,11 @@
+model,set,approach,carry,exit,all,gripper
+diffusion_b,held_out,10.833,11.18,13.04,11.56,6.842
+diffusion_b,train_ref,1.413,1.853,3.0,2.023,1.546
+diffusion_bsp_b,held_out,11.995,11.963,13.677,12.403,7.116
+diffusion_bsp_b,train_ref,2.096,2.861,4.584,3.078,1.833
+smolvla_b,held_out,10.409,11.358,12.638,11.439,6.882
+smolvla_b,train_ref,1.524,1.768,2.577,1.913,1.326
+smolvla_b40k,held_out,10.307,11.446,12.719,11.477,6.752
+smolvla_b40k,train_ref,2.215,2.792,3.957,2.917,1.986
+smolvla_bsp_b,held_out,10.492,11.887,13.895,12.037,6.997
+smolvla_bsp_b,train_ref,1.859,2.263,3.204,2.387,1.811

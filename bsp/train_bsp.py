@@ -155,7 +155,16 @@ def warm_start(policy, init_dir, rows):
         else:
             skipped.append(f"{k} {tuple(v.shape)}->{tuple(own[k].shape)}")
     policy.load_state_dict(own)
-    print(f"warm start: {loaded} tensors copied, sliced {sliced}")
+    # load_state_dict keeps the fp32 dtype of a model built from config;
+    # SmolVLA (load_vlm_weights=False) must keep its bf16 VLM from --init.
+    recast = 0
+    for name, t in [*policy.named_parameters(), *policy.named_buffers()]:
+        if name in src and src[name].dtype != t.dtype and \
+                src[name].shape == t.shape:
+            t.data = t.data.to(src[name].dtype)
+            recast += 1
+    print(f"warm start: {loaded} tensors copied, sliced {sliced}, "
+          f"{recast} cast to the --init dtype")
     print("fresh (shape changed):", *skipped, sep="\n  ")
 
 

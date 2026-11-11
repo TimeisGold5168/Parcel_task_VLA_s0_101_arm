@@ -9,6 +9,8 @@ thread, wall-clock curve time) with the parcel setup:
   --ddim-steps (default 10, about 0.1 s per plan);
 - --model smolvla_bsp: smolvla_bsp_parcel_20k; its saved processors
   rename the cameras and tokenize the task text.
+- --model diffusion_bsp_b / smolvla_bsp_b: the same, trained on
+  dataset B (diffusion_bsp_parcel_b_40k, smolvla_bsp_parcel_b_40k).
 
 Per episode: press Enter or Right arrow to start, and again when the
 parcel is off the table (or the episode ends at --duration). These two
@@ -45,6 +47,7 @@ import torch
 HERE = Path(__file__).parent
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parent / "bsp"))
+import fast_denoise  # noqa: E402
 import run_bsp as rb  # noqa: E402
 from rollout_mixed import fast_prepare, start_preview  # noqa: E402
 from train_mixed import patch_diffusion  # noqa: E402
@@ -60,7 +63,11 @@ from lerobot.robots.so_follower.config_so_follower import (  # noqa: E402
 from lerobot.utils.keyboard_input import create_key_listener  # noqa: E402
 
 RUNS = {"diffusion_bsp": ("diffusion_bsp_parcel_40k", "Diffusion-BSP"),
-        "smolvla_bsp": ("smolvla_bsp_parcel_20k", "SmolVLA-BSP")}
+        "smolvla_bsp": ("smolvla_bsp_parcel_20k", "SmolVLA-BSP"),
+        "diffusion_bsp_b": ("diffusion_bsp_parcel_b_40k",
+                            "Diffusion-BSP (dataset B)"),
+        "smolvla_bsp_b": ("smolvla_bsp_parcel_b_40k",
+                          "SmolVLA-BSP (dataset B)")}
 RESULTS = HERE / "results_bsp_parcel.csv"
 V = "/dev/v4l/by-id/usb-JoyandAI_JYU2C-2083_JYU2C-2083-"
 WRIST = V + "2607053-video-index0"
@@ -219,6 +226,20 @@ class EpisodeVideo(threading.Thread):
         self.join()
 
 
+def warm_up(ex, n=3):
+    """Plan n times with the robot still: the first plan compiles."""
+    _, _, frame = ex.observe()
+    batch = rb.prepare_observation_for_inference(
+        dict(frame), ex.device, rb.TASK, "so101_follower")
+    for i in range(n):
+        t = time.perf_counter()
+        with torch.inference_mode():
+            rb.predict_segment(ex.policy, ex.pre(batch), None)
+        torch.cuda.synchronize()
+        print(f"warm-up plan {i + 1}/{n}: "
+              f"{time.perf_counter() - t:.2f} s")
+
+
 def flush_stdin():
     """Drop keys typed while the robot ran (stray Enter, arrows)."""
     with contextlib.suppress(termios.error, OSError):
@@ -253,6 +274,11 @@ def main():
     ap.add_argument("--fixed-noise", action="store_true",
                     help="one start noise per episode (smaller jumps "
                     "between segments)")
+    ap.add_argument("--compile", default="off",
+                    choices=["off", "default", "reduce-overhead"],
+                    help="smolvla_bsp: compiled denoise step "
+                    "(bsp/fast_denoise.py); default ~3.4 ms/step, "
+                    "reduce-overhead (CUDA graph) ~3.1, off ~13")
     ap.add_argument("--debug", action="store_true")
     ap.add_argument("--no-preview", action="store_true")
     ap.add_argument("--no-video", action="store_true",
@@ -267,7 +293,7 @@ def main():
     meta = json.loads((policy_dir / "bsp.json").read_text())
     args.fps = meta["fps"]
     cfg = PreTrainedConfig.from_pretrained(policy_dir)
-    settings = f"x{args.speed:g}"
+    settings = f"x{args.speed:g}; max step {args.max_step:g}"
     if cfg.type == "smolvla":
         cfg.num_steps = args.flow_steps
         settings = f"flow {args.flow_steps}; {settings}"
@@ -288,6 +314,9 @@ def main():
         settings = f"{settings}; blend {args.blend:g}"
         if args.fixed_noise:
             settings += "; fixed noise"
+        if args.compile != "off":
+            fast_denoise.enable(policy.model, args.compile)
+            settings += f"; compile {args.compile}"
     policy.to("cuda").eval()
     pre, post = make_pre_post_processors(cfg,
                                          pretrained_path=str(policy_dir))
@@ -302,6 +331,8 @@ def main():
     with ex.bus:
         obs = robot.get_observation()
     home = np.array([obs[k] for k in keys])
+    if args.compile != "off":
+        warm_up(ex)
     stamp = time.strftime("%Y%m%d_%H%M%S")
     run = f"{args.model}_parcel_{args.level}_{stamp}"
     out = rb.HERE / "runs" / run
