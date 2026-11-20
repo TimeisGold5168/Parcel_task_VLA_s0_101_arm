@@ -1,0 +1,8 @@
+episode,time_s,grip_cycles,home_s,parcels,cleared,wrong_label,help,cases,note
+0,175.0,4,14.5,4,4,0,0,,4 orange boxes; slow but no help
+1,166.3,18,1.7,4,4,1,0,,4 black bags; a bag went off label up at 106.4 s (no flip); many grasp retries
+2,182.5,15,6.9,4,4,0,1,,4 white bags; operator moved a white bag at 156.5 s; many grasp retries
+3,50.6,1,28.7,4,0,0,0,,4 black boxes; first grasp missed; then still at home from 20 s; stopped at 51 s
+4,198.0,7,56.0,4,4,0,3,box_on_box far_edge,4 black boxes; operator took a box off a box at 34.5 s; moved a box at 71.0 s; pushed a box from the far edge at 182.0 s
+5,11.7,2,0.0,4,,,,,4 orange boxes; stopped at 12 s (not counted)
+6,77.3,2,12.3,3,2,0,1,,3 orange boxes; operator put the third box back in the tray at 52.0 s; then still at home 57-77 s; stopped

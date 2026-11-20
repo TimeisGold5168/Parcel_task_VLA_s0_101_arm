@@ -1,0 +1,7 @@
+episode,time_s,grip_cycles,home_s,parcels,cleared,wrong_label,help,cases,note
+0,32.5,2,0.3,2,2,0,0,,2 black bags; clean
+1,69.0,2,30.5,2,2,0,1,far_edge,2 black boxes; operator moved a black box from the far edge at 44.5 s
+2,44.5,4,2.3,2,2,0,0,,2 white bags; clean
+3,71.4,5,15.4,2,2,0,0,,2 orange boxes; clean
+4,61.1,2,11.0,2,2,0,1,far_edge,2 orange boxes; operator moved an orange box from the far edge at 28.0 s
+5,54.0,5,1.2,2,2,0,0,,2 black bags; clean

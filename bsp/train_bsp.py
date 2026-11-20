@@ -218,6 +218,11 @@ def main():
     ap.add_argument("--save-freq", type=int, default=5000)
     ap.add_argument("--log-freq", type=int, default=100)
     ap.add_argument("--smoke", action="store_true")
+    ap.add_argument("--warmup", type=int, default=None,
+                    help="SmolVLA: LR warm-up steps (default: --init)")
+    ap.add_argument("--decay", type=int, default=None,
+                    help="SmolVLA: LR decay steps (default: --init; a "
+                    "short --init decay leaves the rest at the low LR)")
     args = ap.parse_args()
     logging.basicConfig(level=logging.WARNING)
     if args.smoke:
@@ -241,6 +246,10 @@ def main():
                                   root=ROOT / args.dataset)
     cfg = build_config(args, rows, dim, meta)
     assert cfg.type == args.policy, f"--init is a {cfg.type} checkpoint"
+    if args.warmup is not None:
+        cfg.scheduler_warmup_steps = args.warmup
+    if args.decay is not None:
+        cfg.scheduler_decay_steps = args.decay
     if cfg.type == "diffusion":
         patch_diffusion()  # no change when all cameras have one size
     fps = meta.fps

@@ -1,0 +1,7 @@
+episode,time_s,grip_cycles,parcels,cleared,wrong_label,help,cases,note
+0,143.2,7,3,0,0,0,far_edge,black bag + black box near the far edge; moved over the heap for 143 s; no parcel cleared
+1,162.4,7,3,3,0,0,,black box + white bag + orange box (3 kinds); slow; white bag last at 141-152 s
+2,124.3,6,3,3,0,0,,white bag + 2 black boxes; 50 s between the bag and the first box
+3,65.5,4,3,3,0,0,,black box + orange box + black box; clean
+4,128.5,6,3,,0,0,,black box off at 17 s; then 85 s over the tray; orange box off at 120 s; third parcel not seen
+5,2.0,1,3,,,,,stopped at 2 s (no run)

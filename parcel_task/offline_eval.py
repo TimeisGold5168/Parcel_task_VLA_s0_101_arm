@@ -17,6 +17,8 @@ Held-out episodes (not in training): parcel-sort-a_backup_with_h2
 episodes 7-9 (first heap 2 attempt) and parcel-sort-a_heap1_720
 episodes 3-6 (top camera 1280x720, resized to 848x480; episodes 0-2 have
 dropped top frames). Reference: 7 training episodes of parcel-sort-a.
+Both held-out datasets were deleted on 2026-11-18; a held-out set that
+is not on disk is skipped.
 
 Usage:
   python outputs/portfolio/parcel_task/offline_eval.py
@@ -60,6 +62,8 @@ SETS = {
     "train_ref": [("parcel-sort-a", [3, 17, 31, 45, 59, 73, 87], False)],
     "train_dec": [("parcel-sort-a", list(range(100)), True)],
 }
+SETS["held_out"] = [p for p in SETS["held_out"]
+                    if (LOW / p[0] / "meta/info.json").exists()]
 TOP = "observation.images.top"
 H = 30  # 1 s at 30 fps
 # the flip / exit choice shows in the demo motion from ~0.5 s after

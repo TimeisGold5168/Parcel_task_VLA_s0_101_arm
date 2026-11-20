@@ -1,0 +1,42 @@
+time,call,skill,p_bag,text_in_use,agree,gripper,ms,plan,image
+1795093190.453,plan,bag,1.000,bag,,1.1,2359,probe bag; top bag(white),1795093190.453_plan.jpg
+1795093193.313,verify,bag,0.621,bag,1,1.1,214,,1795093193.313_verify.jpg
+1795093194.813,verify,box,0.018,bag,0,3.6,151,,1795093194.813_verify.jpg
+1795093195.887,verify,box,0.019,bag,0,3.7,134,,1795093195.887_verify.jpg
+1795093196.924,verify,box,0.004,bag,0,3.7,129,,1795093196.924_verify.jpg
+1795093197.960,verify,box,0.004,bag,0,3.7,108,,1795093197.960_verify.jpg
+1795093210.118,grasp,,,bag,,44.4,,,
+1795093220.255,plan,bag,1.000,bag,,1.8,245,probe bag; top bag(white) box(orange),1795093220.255_plan.jpg
+1795093229.159,verify,bag,0.787,bag,1,52.0,350,,1795093229.159_verify.jpg
+1795093230.197,verify,bag,0.995,bag,1,51.1,343,,1795093230.197_verify.jpg
+1795093231.237,verify,bag,0.986,bag,1,50.4,1493,,1795093231.237_verify.jpg
+1795093232.853,grasp,,,bag,,5.0,,,
+1795093238.475,plan,bag,0.999,bag,,1.1,610,probe bag; top bag(white) box(orange),1795093238.475_plan.jpg
+1795093239.983,verify,box,0.012,bag,0,1.1,1756,,1795093239.983_verify.jpg
+1795093241.852,verify,box,0.377,bag,0,24.1,362,,1795093241.852_verify.jpg
+1795093242.890,verify,bag,0.922,bag,1,45.8,192,,1795093242.890_verify.jpg
+1795093243.895,verify,bag,0.928,bag,1,46.5,719,,1795093243.895_verify.jpg
+1795093244.934,verify,bag,0.979,bag,1,45.0,418,,1795093244.934_verify.jpg
+1795093246.138,grasp,,,bag,,30.9,,,
+1795093250.795,plan,bag,1.000,bag,,1.1,882,probe bag; top bag(white) box(orange),1795093250.795_plan.jpg
+1795093254.692,verify,bag,0.980,bag,1,49.6,243,,1795093254.692_verify.jpg
+1795093255.730,verify,bag,0.953,bag,1,48.9,400,,1795093255.730_verify.jpg
+1795093256.733,verify,box,0.238,bag,0,48.7,210,,1795093256.733_verify.jpg
+1795093257.639,grasp,,,bag,,38.2,,,
+1795093271.117,plan,bag,0.991,bag,,1.1,465,probe bag; top box(orange),1795093271.117_plan.jpg
+1795093275.189,verify,box,0.002,bag,0,51.0,368,,1795093275.189_verify.jpg
+1795093276.262,verify,box,0.000,bag,0,53.6,196,,1795093276.262_verify.jpg
+1795093277.267,verify,box,0.000,bag,0,55.8,363,,1795093277.267_verify.jpg
+1795093278.338,verify,box,0.170,bag,0,56.3,417,,1795093278.338_verify.jpg
+1795093279.351,verify,box,0.007,bag,0,56.5,1247,,1795093279.351_verify.jpg
+1795093280.711,grasp,,,bag,,37.5,,,
+1795093286.742,plan,bag,0.831,bag,,33.3,534,probe bag; top ,1795093286.742_plan.jpg
+1795093288.275,verify,box,0.001,bag,0,31.9,148,,1795093288.275_verify.jpg
+1795093289.312,verify,box,0.000,bag,0,31.4,148,,1795093289.312_verify.jpg
+1795093289.683,grasp,,,bag,,20.5,,,
+1795093346.423,plan,bag,0.827,bag,,34.4,1975,probe bag; top ,1795093346.423_plan.jpg
+1795093348.806,verify,bag,0.999,bag,1,34.4,219,,1795093348.806_verify.jpg
+1795093350.304,verify,box,0.113,bag,0,33.0,123,,1795093350.304_verify.jpg
+1795093351.342,verify,box,0.012,bag,0,33.0,135,,1795093351.342_verify.jpg
+1795093352.379,verify,box,0.002,bag,0,33.0,138,,1795093352.379_verify.jpg
+1795093353.382,verify,box,0.008,bag,0,33.0,185,,1795093353.382_verify.jpg

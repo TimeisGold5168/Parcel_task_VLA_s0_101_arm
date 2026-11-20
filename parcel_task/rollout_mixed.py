@@ -17,7 +17,16 @@ PREVIEW_LABEL (text on the window), SMOOTH (SmolVLA chunk moving
 average over this many actions; 0 = off), FREEZE=1 (no autograd in
 RTC guidance), COMPILE=default (compiled denoise step),
 RTC_EXACT_DELAY=1 (RTC skips the actions really used),
-ROLLOUT_DEBUG (.npz log path, read with rollout_debug.py).
+ROLLOUT_DEBUG (.npz log path, read with rollout_debug.py),
+LIVE_SKILL=1 (keys 1/2/3 set the task text of the next plans to the
+box/bag/top-box skill text, 4/5 far edge/on table if the split file
+has them, 0 = back to the --task text; the preview
+shows the skill), SKILL_SPLIT (split file of make_skill3.py with the
+texts; default: the base texts), SKILL_LOG (CSV of the key times and
+skills), PLANNER=log|drive (box/bag planner thread of
+planner/live_planner.py; log: calls only, drive: it sets the text;
+needs LIVE_SKILL=1), PLANNER_PROBES (default planner/planner_500m.npz),
+PLANNER_LOG (CSV of the planner calls).
 """
 
 import collections
@@ -30,6 +39,12 @@ import torch
 
 from lerobot.datasets.lerobot_dataset import LeRobotDataset
 from train_mixed import patch_diffusion
+
+# key: (skill, task text); the texts of make_skill3.py
+SKILLS = {"1": ("box", "pick the box and place it in the flip zone"),
+          "2": ("bag", "pick the bag and place it in the flip zone"),
+          "3": ("top", "pick the top box off the stack")}
+LIVE = {"skill": "", "task": None}
 
 
 def fast_prepare(observation, device, task=None, robot_type=None):
@@ -139,6 +154,50 @@ def patch_rtc_exact_delay():
     ActionQueue._check_and_resolve_delays = resolve
 
 
+def patch_rtc_fresh_obs():
+    """RTC reset: also drop the last observation.
+
+    The stock reset clears the action queue but keeps the observation
+    of the last autonomous tick. After a DAgger pause and correction,
+    the first plan then uses the old scene and the arm goes back to the
+    pose of the pause. With the observation cleared, the RTC thread
+    waits for the first new tick.
+    """
+    from lerobot.rollout.inference.rtc import RTCInferenceEngine
+    reset = RTCInferenceEngine.reset
+
+    def fresh_reset(self):
+        reset(self)
+        with self._obs_lock:
+            self._obs_holder["obs"] = None
+
+    RTCInferenceEngine.reset = fresh_reset
+
+
+def patch_leader_torque(retries=5):
+    """Leader arm torque on/off: retry, then warn instead of a crash.
+
+    The stock calls try once. One bad status packet from a leader motor
+    at a DAgger handover stopped the whole session. Leader torque only
+    holds the arm between corrections, so a failed switch is not unsafe.
+    """
+    import logging
+    from lerobot.teleoperators.so_leader.so_leader import SOLeader
+    log = logging.getLogger("leader_torque")
+
+    def make(name):
+        def call(self):
+            try:
+                getattr(self.bus, name)(num_retry=retries)
+            except ConnectionError as e:
+                log.warning("leader %s failed after %d retries: %s",
+                            name, retries, e)
+        return call
+
+    SOLeader.enable_torque = make("enable_torque")
+    SOLeader.disable_torque = make("disable_torque")
+
+
 def patch_debug(path, label=""):
     """Log the rollout to path (.npz) and print one line per plan.
 
@@ -229,6 +288,89 @@ def patch_debug(path, label=""):
     print(f"[debug] log -> {path}", flush=True)
 
 
+def patch_live_skill(own_listener, log_path=None):
+    """Keys 1/2/3 select the task text of the next plans; 0 = --task.
+
+    The sync and RTC engines read self._task at each plan, so _task
+    becomes a property that returns the live text. own_listener: start
+    a key listener (base strategy has none); else the digit keys are
+    added to the strategy's listener (one listener on the terminal).
+    """
+    from lerobot.rollout.inference.rtc import RTCInferenceEngine
+    from lerobot.rollout.inference.sync import SyncInferenceEngine
+    from lerobot.utils import keyboard_input as ki
+
+    def get(self):
+        return LIVE["task"] or self.__dict__["_task_cfg"]
+
+    def put(self, value):
+        self.__dict__["_task_cfg"] = value
+
+    for cls in (RTCInferenceEngine, SyncInferenceEngine):
+        cls._task = property(get, put)
+
+    def on_key(name):
+        if name == "0":
+            LIVE.update(skill="", task=None)
+        elif name in SKILLS:
+            LIVE["skill"], LIVE["task"] = SKILLS[name]
+        else:
+            return False
+        print(f"[skill] {LIVE['skill'] or 'start text'}", flush=True)
+        if log_path:
+            with open(log_path, "a") as f:
+                f.write(f"{time.time():.3f},{LIVE['skill'] or 'start'}\n")
+        return True
+
+    help_text = ", ".join(f"{k} {s}" for k, (s, _) in SKILLS.items()) \
+        + ", 0 start text"
+    if own_listener:
+        ki.create_key_listener(on_key, controls_help=help_text)
+    else:
+        make = ki.create_key_listener
+
+        def with_skills(dispatch, controls_help=""):
+            return make(lambda n: on_key(n) or dispatch(n),
+                        controls_help=f"{controls_help}; {help_text}")
+
+        ki.create_key_listener = with_skills
+    print(f"[skill] keys: {help_text}", flush=True)
+
+
+def patch_planner(drive, probes, log_path):
+    """Box/bag planner thread on the robot observations (see
+    planner/live_planner.py). drive: it also sets the skill text."""
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).parent.parent / "planner"))
+    from live_planner import LivePlanner
+    from lerobot.rollout import context
+    start = os.environ.get("SKILL", "start")
+
+    def set_skill(name):
+        key = next(k for k, (s, _) in SKILLS.items() if s == name)
+        LIVE["skill"], LIVE["task"] = SKILLS[key]
+
+    planner = LivePlanner(probes, log_path, drive, set_skill,
+                          lambda: LIVE["skill"] or start)
+    make = context.make_robot_from_config
+
+    def make_with_planner(cfg):
+        robot = make(cfg)
+        observe = robot.get_observation
+
+        def get_observation(*a, **kw):
+            obs = observe(*a, **kw)
+            planner.update(obs)
+            return obs
+
+        robot.get_observation = get_observation
+        planner.start()
+        return robot
+
+    context.make_robot_from_config = make_with_planner
+
+
 def start_preview(robot, label=None):
     """Camera preview of a connected robot, with its send_action rate.
 
@@ -265,6 +407,10 @@ def start_preview(robot, label=None):
                 f"{label}   robot idle"
             cv2.putText(canvas, text, (10, self.h - 20),
                         cv2.FONT_HERSHEY_SIMPLEX, 1.2, colour, 3)
+            if os.environ.get("LIVE_SKILL", "0") != "0":
+                cv2.putText(canvas, f"skill: {LIVE['skill'] or 'start'}",
+                            (10, self.h - 70), cv2.FONT_HERSHEY_SIMPLEX,
+                            1.6, (0, 200, 255), 4)
             return canvas
 
         def run(self):
@@ -299,6 +445,8 @@ def patch_preview():
 if __name__ == "__main__":
     patch_diffusion()
     patch_prepare()
+    patch_rtc_fresh_obs()
+    patch_leader_torque()
     if int(os.environ.get("SMOOTH", "0")) > 1:
         patch_smooth(int(os.environ["SMOOTH"]) // 2 * 2 + 1)
     if os.environ.get("PREVIEW", "1") != "0":
@@ -311,5 +459,23 @@ if __name__ == "__main__":
     if os.environ.get("ROLLOUT_DEBUG"):
         patch_debug(os.environ["ROLLOUT_DEBUG"],
                     os.environ.get("ROLLOUT_DEBUG_LABEL", ""))
+    if os.environ.get("LIVE_SKILL", "0") != "0":
+        import json
+        import sys
+        if os.environ.get("SKILL_SPLIT"):
+            with open(os.environ["SKILL_SPLIT"]) as f:
+                texts = json.load(f)["texts"]
+            SKILLS.update({k: (s, texts[s]) for k, (s, _) in SKILLS.items()})
+            for key, name in (("4", "far"), ("5", "push")):
+                if name in texts:
+                    SKILLS[key] = (name, texts[name])
+        patch_live_skill("--strategy.type=base" in sys.argv,
+                         os.environ.get("SKILL_LOG"))
+    if os.environ.get("PLANNER"):
+        from pathlib import Path
+        default = Path(__file__).parent.parent / "planner/planner_500m.npz"
+        patch_planner(os.environ["PLANNER"] == "drive",
+                      os.environ.get("PLANNER_PROBES", str(default)),
+                      os.environ["PLANNER_LOG"])
     from lerobot.scripts.lerobot_rollout import main
     main()

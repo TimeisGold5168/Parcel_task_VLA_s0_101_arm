@@ -11,6 +11,10 @@ thread, wall-clock curve time) with the parcel setup:
   rename the cameras and tokenize the task text.
 - --model diffusion_bsp_b / smolvla_bsp_b: the same, trained on
   dataset B (diffusion_bsp_parcel_b_40k, smolvla_bsp_parcel_b_40k).
+- --model smolvla_bsp_b_dg: smolvla_bsp_b + 15k steps on dataset B and
+  the DAgger corrections (smolvla_bsp_parcel_b_dagger_15k).
+- --model smolvla_bsp_b_dgt: the same, with the idle home tail of each
+  correction cut (smolvla_bsp_parcel_b_dagger_trim_15k).
 
 Per episode: press Enter or Right arrow to start, and again when the
 parcel is off the table (or the episode ends at --duration). These two
@@ -47,6 +51,7 @@ import torch
 HERE = Path(__file__).parent
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parent / "bsp"))
+import cpp_control  # noqa: E402
 import fast_denoise  # noqa: E402
 import run_bsp as rb  # noqa: E402
 from rollout_mixed import fast_prepare, start_preview  # noqa: E402
@@ -67,7 +72,11 @@ RUNS = {"diffusion_bsp": ("diffusion_bsp_parcel_40k", "Diffusion-BSP"),
         "diffusion_bsp_b": ("diffusion_bsp_parcel_b_40k",
                             "Diffusion-BSP (dataset B)"),
         "smolvla_bsp_b": ("smolvla_bsp_parcel_b_40k",
-                          "SmolVLA-BSP (dataset B)")}
+                          "SmolVLA-BSP (dataset B)"),
+        "smolvla_bsp_b_dg": ("smolvla_bsp_parcel_b_dagger_15k",
+                             "SmolVLA-BSP (dataset B + DAgger 1)"),
+        "smolvla_bsp_b_dgt": ("smolvla_bsp_parcel_b_dagger_trim_15k",
+                              "SmolVLA-BSP (B + DAgger 1, tails cut)")}
 RESULTS = HERE / "results_bsp_parcel.csv"
 V = "/dev/v4l/by-id/usb-JoyandAI_JYU2C-2083_JYU2C-2083-"
 WRIST = V + "2607053-video-index0"
@@ -279,6 +288,14 @@ def main():
                     help="smolvla_bsp: compiled denoise step "
                     "(bsp/fast_denoise.py); default ~3.4 ms/step, "
                     "reduce-overhead (CUDA graph) ~3.1, off ~13")
+    ap.add_argument("--trt", default="off",
+                    choices=["off", "fp16", "fp32", "bf16"],
+                    help="dataset B models: TensorRT engines of "
+                    "bsp/trt_plan.py (build them first)")
+    ap.add_argument("--control", default="python",
+                    choices=["python", "cpp"],
+                    help="cpp: control loop and servo bus in "
+                    "bsp/ctl/bsp_ctl (bsp/cpp_control.py)")
     ap.add_argument("--debug", action="store_true")
     ap.add_argument("--no-preview", action="store_true")
     ap.add_argument("--no-video", action="store_true",
@@ -294,6 +311,7 @@ def main():
     args.fps = meta["fps"]
     cfg = PreTrainedConfig.from_pretrained(policy_dir)
     settings = f"x{args.speed:g}; max step {args.max_step:g}"
+    settings = f"{settings}; blend {args.blend:g}"
     if cfg.type == "smolvla":
         cfg.num_steps = args.flow_steps
         settings = f"flow {args.flow_steps}; {settings}"
@@ -311,13 +329,19 @@ def main():
         for prm in vlm.parameters():
             if prm.dtype == torch.float32:
                 prm.data = prm.data.to(torch.bfloat16)
-        settings = f"{settings}; blend {args.blend:g}"
         if args.fixed_noise:
             settings += "; fixed noise"
         if args.compile != "off":
             fast_denoise.enable(policy.model, args.compile)
             settings += f"; compile {args.compile}"
     policy.to("cuda").eval()
+    if args.trt != "off":
+        import trt_plan
+
+        if args.model not in trt_plan.CKPTS:
+            raise SystemExit(f"--trt: no engines for {args.model}")
+        trt_plan.enable(policy, args.model, args.trt)
+        settings += f"; trt {args.trt}"
     pre, post = make_pre_post_processors(cfg,
                                          pretrained_path=str(policy_dir))
 
@@ -325,13 +349,33 @@ def main():
     if not args.no_preview:
         start_preview(robot, f"{args.model} {args.level}")
     keys = list(robot.action_features)
-    ex = ParcelExecutor(robot, policy, pre, post, keys, args,
-                        meta["degree"])
+    cls, ctl = ParcelExecutor, None
+    if args.control == "cpp":
+        # LeRobot configured the motors in connect(); bsp_ctl now owns
+        # the port until the end of the run
+        robot.bus.port_handler.closePort()
+        ctl = cpp_control.CppControl(hz=args.hz, port=rb.PORT)
+        cls = type("CppParcelExecutor",
+                   (cpp_control.CppExecutorMixin, ParcelExecutor), {})
+        settings += "; control cpp"
+    ex = cls(robot, policy, pre, post, keys, args, meta["degree"])
+    ex.cpp = ctl
     ex.start_keys()
-    with ex.bus:
-        obs = robot.get_observation()
-    home = np.array([obs[k] for k in keys])
-    if args.compile != "off":
+    if ctl is not None:
+        t = time.perf_counter()
+        while ctl.state()[0] is None and time.perf_counter() - t < 2:
+            time.sleep(0.02)
+        state = ctl.state()[0]
+        if state is None:
+            ctl.stop()
+            raise SystemExit("bsp_ctl: no arm state from the bus")
+        home = np.array(state)
+    else:
+        with ex.bus:
+            obs = robot.get_observation()
+        home = np.array([obs[k] for k in keys])
+    go_to = cpp_control.go_to_cpp if ctl is not None else rb.go_to
+    if args.compile != "off" or args.trt != "off":
         warm_up(ex)
     stamp = time.strftime("%Y%m%d_%H%M%S")
     run = f"{args.model}_parcel_{args.level}_{stamp}"
@@ -353,7 +397,7 @@ def main():
             ex.key_done = False
             if video is not None:
                 video.stop()
-            rb.go_to(ex, home)
+            go_to(ex, home)
             res = ask("result: s = success, f = fail: ", ("s", "f"))
             phase = ""
             if res == "f":
@@ -362,6 +406,8 @@ def main():
                     ("p", "f", "e"))]
             lat = 1000 * float(np.mean(ex.latency)) if ex.latency else 0
             rb.save_episode(ex, out, f"ep{ep}")
+            if ctl is not None:
+                np.save(out / f"ep{ep}_cpp_ticks.npy", ex.cpp_ticks)
             row = {"time": time.strftime("%F_%T"),
                    "model": args.model,
                    "checkpoint": f"{ckpt}/last",
@@ -385,6 +431,9 @@ def main():
                   f"segments={ex.n_segments}")
     finally:
         ex.running = False
+        if ctl is not None:
+            ctl.stop()
+            robot.bus.port_handler.openPort()
         robot.disconnect()
     if RESULTS.exists():
         print(f"\n{RESULTS}:")

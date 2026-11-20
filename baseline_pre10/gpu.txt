@@ -1,0 +1,2 @@
+NVIDIA RTX PRO 500 Blackwell Generation Laptop GPU, 580.159.03
+2.11.0+cu130 13.0

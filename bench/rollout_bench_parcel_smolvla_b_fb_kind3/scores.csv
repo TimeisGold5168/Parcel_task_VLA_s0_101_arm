@@ -1,0 +1,6 @@
+episode,time_s,grip_cycles,home_s,parcels,cleared,wrong_label,help,cases,note
+0,84.0,4,12.5,3,3,0,0,,orange box + black box + white bag; clean
+1,80.2,6,4.9,3,3,0,0,,black bag + black box + orange box; clean
+2,179.0,3,144.7,3,1,0,1,far_edge,black bag + black box + orange box; black bag off at 12 s; then still at home 24-167 s; operator pushed the orange box at 140 s; time limit
+3,61.7,4,2.0,3,3,0,0,,white bag + orange box + black bag; clean
+4,122.1,8,45.8,3,3,0,1,,black bag + white bag + black box; operator moved the black bag at 27.5 s

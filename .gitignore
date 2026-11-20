@@ -12,3 +12,17 @@ mount_check/
 *.webm
 parcel_labels/live_tests/*.csv
 approach_demo/camera_layout_v2.png
+
+# code and docs only from Nov 20; images already in git stay tracked
+*.jpg
+*.jpeg
+*.png
+*.mp3
+*.pt
+*.onnx
+*.onnx.data
+*.engine
+bsp/engines/
+video/footage/
+parcel_task/debug_logs/*_img/
+bsp/ctl/bsp_ctl

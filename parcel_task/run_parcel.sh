@@ -7,6 +7,30 @@
 #   smolvla   = SmolVLA 20k on parcel-sort-a
 #   smolvla80k = SmolVLA 80k on parcel-sort-a
 #   diffusion_b, smolvla_b = Diffusion 80k, SmolVLA 80k on parcel-sort-b
+#   smolvla_b_dg = smolvla_b + 15k steps on parcel-sort-b-dagger
+#   smolvla_b_dgt = the same on parcel-sort-b-dagger-trim
+#   smolvla_b_dgg = gentle fine-tune (lr 1e-5, B stats, B 2x, 6k steps)
+#   smolvla_b_fe, smolvla_b_box, smolvla_b_fb = smolvla_b + 5k steps
+#     with far-edge picks, box-stack demos, or both (queue_skill.sh)
+#   smolvla_b_fbs = smolvla_b_fb 10k + 10k steps with the stacked-parcel
+#     corrections (queue_skill.sh fbs)
+#   smolvla_b_all = smolvla_b_fb 10k + 20k steps on the balanced
+#     all-skill mix (queue_all.sh); CKPT_STEP=010000 passed the gate
+#   smolvla_b_sk3 = smolvla_b + 10k steps with one skill text for each
+#     episode (queue_skill3.sh). Needs SKILL=box|bag|top (the start
+#     text), e.g. SKILL=box run_parcel.sh smolvla_b_sk3. During the run,
+#     keys 1/2/3 change the text of the next plans (box/bag/top box),
+#     0 = back to the start text. Key log: debug_logs/skill_<time>.csv
+#   smolvla_b_sk3d = the same with texts that share no word
+#     (make_skill3.py --variant distinct; texts in skill3d_split.json)
+#   smolvla_b_sk5d = 5 skills with texts that share no word (also far
+#     edge and on table: SKILL=far|push, keys 4/5; skill5d_split.json)
+#   PLANNER=log|drive (sk3 models): box/bag planner on the robot
+#     (planner/live_planner.py); log = calls only, the keys stay with
+#     the operator; drive = the planner sets the text. PLAN_FROM=probe
+#     (default, learned habit) or view (ranked top view); WRIST_SWITCH=1
+#     lets the wrist check change the text one time. Log:
+#     debug_logs/planner_<time>.csv and planner_<time>_img/
 # Default (RECORD=0): one attempt, no recording, preview window
 #   (LeRobot base strategy). Example: run_parcel.sh smolvla
 # RECORD=1: episodes saved to a dataset, preview window, keys below.
@@ -28,13 +52,36 @@
 #   RTC_EXACT_DELAY=1  RTC skips the actions really used in the plan
 set -euo pipefail
 
-MODEL=${1:?model: diffusion, smolvla, smolvla80k, diffusion_b, smolvla_b}
+MODEL=${1:?model: diffusion, smolvla(80k), diffusion_b, smolvla_b(_dg)}
 COND=${2:-test}
 EPISODES=${3:-1}
 TASK="sort the parcel so the label faces down and push it off the table"
 HERE=$(cd "$(dirname "$0")" && pwd)
 TRAIN=$HERE/../../train
 PY=/home/zhenting.lee/miniforge3/envs/lerobot/bin/python
+case "$MODEL" in
+  smolvla_b_sk3) export SKILL_SPLIT=$TRAIN/skill3_split.json ;;
+  smolvla_b_sk3d) export SKILL_SPLIT=$TRAIN/skill3d_split.json ;;
+  smolvla_b_sk5d) export SKILL_SPLIT=$TRAIN/skill5d_split.json ;;
+esac
+if [ -n "${SKILL_SPLIT:-}" ]; then
+  case "${SKILL:-}" in
+    box|bag|top|far|push) ;;
+    *) echo "$MODEL needs SKILL=box|bag|top (sk5d: also far|push)"
+       exit 1 ;;
+  esac
+  TASK=$("$PY" -c "import json, sys
+print(json.load(open(sys.argv[1]))['texts'][sys.argv[2]])" \
+    "$SKILL_SPLIT" "$SKILL")
+  mkdir -p "$HERE/debug_logs"
+  export LIVE_SKILL=1
+  STAMP=$(date +%Y%m%d_%H%M%S)
+  export SKILL_LOG=${SKILL_LOG:-$HERE/debug_logs/skill_$STAMP.csv}
+  echo "$(date +%s.%3N),launch $SKILL" >> "$SKILL_LOG"
+  if [ -n "${PLANNER:-}" ]; then
+    export PLANNER_LOG=${PLANNER_LOG:-$HERE/debug_logs/planner_$STAMP.csv}
+  fi
+fi
 
 EXTRA=()
 case "$MODEL" in
@@ -46,11 +93,26 @@ case "$MODEL" in
     EXTRA=(--policy.noise_scheduler_type=DDIM
            --policy.num_inference_steps="${STEPS:-10}")
     ;;
-  smolvla|smolvla80k|smolvla_b)
+  smolvla|smolvla80k|smolvla_b|smolvla_b_dg*|smolvla_b_fe|smolvla_b_box|\
+  smolvla_b_fb|smolvla_b_fe15|smolvla_b_fbs|smolvla_b_all|smolvla_b_sk3*)
     RUN=smolvla_parcel_a1_20k
     [ "$MODEL" = smolvla80k ] && RUN=smolvla_parcel_a1_80k
     [ "$MODEL" = smolvla_b ] && RUN=smolvla_parcel_b_80k
-    POLICY=$TRAIN/$RUN/checkpoints/last/pretrained_model
+    [ "$MODEL" = smolvla_b_dg ] && RUN=smolvla_parcel_b_dagger_15k
+    [ "$MODEL" = smolvla_b_dgt ] && RUN=smolvla_parcel_b_dagger_trim_15k
+    [ "$MODEL" = smolvla_b_dgg ] && RUN=smolvla_parcel_b_dagger_gentle_6k
+    case "$MODEL" in
+      smolvla_b_fe|smolvla_b_box)
+        RUN=smolvla_parcel_b_${MODEL#smolvla_b_}_5k ;;
+      smolvla_b_fb) RUN=smolvla_parcel_b_fb_15k ;;
+      smolvla_b_fe15) RUN=smolvla_parcel_b_fe_15k ;;
+      smolvla_b_fbs) RUN=smolvla_parcel_b_fbs_10k ;;
+      smolvla_b_all) RUN=smolvla_parcel_b_all_20k ;;
+      smolvla_b_sk3|smolvla_b_sk3d|smolvla_b_sk5d)
+        RUN=smolvla_parcel_b_${MODEL#smolvla_b_}_10k ;;
+    esac
+    # CKPT_STEP=005000 runs that checkpoint instead of the last one
+    POLICY=$TRAIN/$RUN/checkpoints/${CKPT_STEP:-last}/pretrained_model
     MAP='{"observation.images.top": "observation.images.camera1",'
     MAP+=' "observation.images.wrist": "observation.images.camera2",'
     MAP+=' "observation.images.side": "observation.images.camera3"}'
@@ -60,6 +122,12 @@ case "$MODEL" in
     ;;
   *) echo "unknown model $MODEL"; exit 1 ;;
 esac
+if [ ! -d "$POLICY" ]; then
+  echo "no checkpoint: $POLICY"
+  echo "available (CKPT_STEP=...):" \
+    $(ls "$(dirname "$(dirname "$POLICY")")" 2>/dev/null)
+  exit 1
+fi
 export PREVIEW_LABEL="$MODEL $COND"
 if [ "${DEBUG:-0}" != 0 ]; then
   mkdir -p "$HERE/debug_logs"
@@ -105,6 +173,11 @@ REPO=${REPO:-Low101/rollout_parcel_${MODEL}_${COND}}
 ROOT=$HOME/.cache/huggingface/lerobot/$REPO
 RESUME=false
 [ -d "$ROOT/meta/episodes" ] && RESUME=true
+# a run stopped before its first episode leaves meta/info.json only
+if [ "$RESUME" = false ] && [ -d "$ROOT" ] \
+    && [ ! -d "$ROOT/data" ] && [ ! -d "$ROOT/videos" ]; then
+  rm -rf "$ROOT"
+fi
 
 COMMON=(
   --policy.path="$POLICY"

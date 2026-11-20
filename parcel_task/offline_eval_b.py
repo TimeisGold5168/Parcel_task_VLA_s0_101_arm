@@ -1,12 +1,13 @@
 """Offline evaluation of the dataset B models (no robot).
 
-Dataset B (Low101/parcel-sort-b): grasp the parcel from the stack, pull
-it to the flip zone, flip it if the label is up, release it label down
+Dataset B (Low101/parcel-sort-b): pick the parcel from the stack, place
+it in the flip zone, flip it if the label is up, release it label down
 (mark), push it off the table. All 99 episodes are in training.
 
 Held-out episodes (not in training): parcel-full-new-pilot 0-4 (same
 procedure, recorded before B) and parcel-sort-b_old episode 88 (removed
-from B: a second grasp after the release).
+from B: a second grasp after the release). Both datasets were deleted
+on 2026-11-18; a held-out set that is not on disk is skipped.
 
 Kind of each demo: "flip" if the wrist roll moves more than 135 deg
 before the mark (B: 75-116 deg without a flip, 159-220 deg with one).
@@ -18,7 +19,7 @@ grasp-to-mark time).
 Test 1 (action error): every 15 frames, predict the next 1 s (30
 frames) and compare with the demo. Mean absolute error in degrees (5
 arm joints; gripper apart). Phases: approach (to the grasp), carry
-(grasp to mark: pull, flip, release), exit (after the mark).
+(grasp to mark: place, flip, release), exit (after the mark).
 
 Test 2 (flip decision): every 10 frames from the grasp to 10 frames
 before the flip onset, predict the next 1 s. Score = the largest wrist
@@ -59,9 +60,26 @@ SPECS = {
     "smolvla_bsp_b": ("smolvla_bsp_parcel_b_40k", "last"),
     "diffusion_b": ("diffusion_parcel_b_80k", "last"),
     "diffusion_bsp_b": ("diffusion_bsp_parcel_b_40k", "last"),
+    "smolvla_b_dg": ("smolvla_parcel_b_dagger_15k", "last"),
+    "smolvla_bsp_b_dg": ("smolvla_bsp_parcel_b_dagger_15k", "last"),
+    "smolvla_b_dgt": ("smolvla_parcel_b_dagger_trim_15k", "last"),
+    "smolvla_b_dgg": ("smolvla_parcel_b_dagger_gentle_6k", "last"),
+    "smolvla_b_ctl": ("smolvla_parcel_b_control_10k", "last"),
+    "smolvla_b_fe": ("smolvla_parcel_b_fe_5k", "last"),
+    "smolvla_b_box": ("smolvla_parcel_b_box_5k", "last"),
+    "smolvla_b_fb": ("smolvla_parcel_b_fb_15k", "last"),
+    "smolvla_b_fe15": ("smolvla_parcel_b_fe_15k", "last"),
+    "smolvla_b_fbs": ("smolvla_parcel_b_fbs_10k", "last"),
+    "smolvla_bsp_b_fbs": ("smolvla_bsp_parcel_b_fbs_30k", "last"),
+    "smolvla_bsp_b_fb": ("smolvla_bsp_parcel_b_fb_30k", "last"),
+    "smolvla_b_all": ("smolvla_parcel_b_all_20k", "last"),
+    "smolvla_b_allb": ("smolvla_parcel_b_allb_20k", "last"),
+    "smolvla_bsp_b_all": ("smolvla_bsp_parcel_b_all_30k", "last"),
 }
-HELD_OUT = [("parcel-full-new-pilot", [0, 1, 2, 3, 4]),
-            ("parcel-sort-b_old", [88])]
+HELD_OUT = [p for p in [("parcel-full-new-pilot", [0, 1, 2, 3, 4]),
+                        ("parcel-sort-b_old", [88])]
+            if (Path.home() / ".cache/huggingface/lerobot/Low101"
+                / p[0] / "meta/info.json").exists()]
 TRAIN_REF = [("parcel-sort-b", [3, 17, 31, 45, 59, 73, 87])]
 TRAIN_DEC = [("parcel-sort-b", list(range(99)))]
 H = 30
@@ -245,6 +263,8 @@ def main():
         print(f"== {name} ({model.path})", flush=True)
         for parts, set_name in ((HELD_OUT, "held_out"),
                                 (TRAIN_REF, "train_ref")):
+            if not parts:
+                continue
             df = test1(model, parts, set_name, args.every, args.batch)
             df["model"] = name
             t1.append(df)
@@ -252,6 +272,8 @@ def main():
                   f"{df.arm_mae.mean():.2f} deg", flush=True)
         for parts, set_name in ((TRAIN_DEC, "train"),
                                 (HELD_OUT, "held_out")):
+            if not parts:
+                continue
             df = test2(model, parts, set_name, args.batch)
             df["model"] = name
             t2.append(df)

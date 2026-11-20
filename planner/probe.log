@@ -1,0 +1,6 @@
+125 frames, 50 episodes, 5 folds
+  stack      AUC 0.96 acc 89% yes found 92% (25/125 yes)
+  far        AUC 0.98 acc 90% yes found 88% (80/120 yes)
+  box        AUC 0.92 acc 39% yes found 35% (116/123 yes)
+  bag        AUC 1.00 acc 100% yes found 100% (67/125 yes)
+  tray_empty AUC 0.97 acc 34% yes found 100% (5/125 yes)

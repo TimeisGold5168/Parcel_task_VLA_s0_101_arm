@@ -1,0 +1,1548 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Parcel Sorting Cell with a Low-Cost Arm | Zhen Ting Lee</title>
+<meta name="description" content="A parcel sorting cell with an SO-101
+arm and imitation learning. Business view and engineering view.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet"
+  href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800">
+<link rel="stylesheet"
+  href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400..700">
+<style>
+/* ---------- shared ---------- */
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; }
+img, video { display: block; max-width: 100%; }
+.wrap { max-width: 1040px; margin: 0 auto; padding: 0 24px; }
+.view { display: none; position: relative; z-index: 2; }
+body[data-view="biz"] #biz,
+body[data-view="eng"] #eng { display: block; }
+table { width: 100%; border-collapse: collapse; }
+figure { margin: 0; }
+
+.switch {
+  position: fixed; top: 14px; right: 18px; z-index: 50;
+  display: flex; padding: 4px; border-radius: 999px; gap: 2px;
+  font: 600 13px/1 Inter, system-ui, sans-serif;
+  transition: background .3s, box-shadow .3s;
+}
+.switch button {
+  border: 0; cursor: pointer; padding: 9px 16px; border-radius: 999px;
+  font: inherit; background: transparent; transition: all .25s;
+}
+body[data-view="biz"] .switch {
+  background: #fff; box-shadow: 0 4px 20px #0f172a1f;
+}
+body[data-view="biz"] .switch button { color: #64748b; }
+body[data-view="biz"] .switch button[aria-pressed="true"] {
+  background: #4f46e5; color: #fff;
+}
+body[data-view="eng"] .switch {
+  background: #ffffffd9; border: 1px solid #10b981;
+  font-family: "JetBrains Mono", monospace;
+}
+body[data-view="eng"] .switch button { color: #047857; }
+body[data-view="eng"] .switch button[aria-pressed="true"] {
+  background: #059669; color: #ecfdf5;
+}
+
+/* ---------- business view ---------- */
+#biz {
+  font: 17px/1.65 Inter, system-ui, sans-serif; color: #334155;
+  background: #fff;
+}
+#biz h1, #biz h2, #biz h3 { color: #0f172a; letter-spacing: -.02em; }
+#biz a { color: #4f46e5; text-decoration: none; }
+#biz .hero {
+  padding: 110px 0 70px;
+  background:
+    radial-gradient(900px 400px at 85% -10%, #e0e7ff 0, transparent 60%),
+    radial-gradient(700px 380px at -10% 10%, #cffafe 0, transparent 60%);
+}
+#biz .eyebrow {
+  display: inline-block; font-size: 13px; font-weight: 600;
+  color: #4f46e5; background: #eef2ff; padding: 6px 12px;
+  border-radius: 999px; margin-bottom: 18px;
+}
+#biz h1 { font-size: 54px; line-height: 1.06; margin: 0 0 20px;
+          font-weight: 800; max-width: 820px; }
+#biz h1 span {
+  background: linear-gradient(90deg, #4f46e5, #06b6d4);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+#biz .lead { font-size: 20px; max-width: 700px; color: #475569; }
+#biz .cta { display: flex; gap: 12px; margin-top: 28px; flex-wrap: wrap; }
+#biz .btn {
+  padding: 12px 20px; border-radius: 10px; font-weight: 600;
+  font-size: 15px; border: 1px solid #e2e8f0; color: #0f172a;
+  background: #fff;
+}
+#biz .btn.primary { background: #0f172a; color: #fff; border-color: #0f172a; }
+#biz .kpis { display: grid; grid-template-columns: repeat(4, 1fr);
+             gap: 16px; margin-top: 56px; }
+#biz .kpi { background: #fff; border: 1px solid #e2e8f0;
+            border-radius: 16px; padding: 22px;
+            box-shadow: 0 1px 2px #0f172a0d; }
+#biz .kpi b { display: block; font-size: 36px; color: #0f172a;
+              font-weight: 800; letter-spacing: -.03em; }
+#biz .kpi span { font-size: 14px; color: #64748b; line-height: 1.45;
+                 display: block; }
+#biz section { padding: 88px 0; }
+#biz section.alt { background: #f8fafc; }
+#biz h2 { font-size: 36px; margin: 0 0 12px; font-weight: 800; }
+#biz .sub { font-size: 18px; color: #64748b; max-width: 680px;
+            margin: 0 0 40px; }
+#biz .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+#biz .grid3 { display: grid; grid-template-columns: repeat(3, 1fr);
+              gap: 20px; }
+#biz .card { background: #fff; border: 1px solid #e2e8f0;
+             border-radius: 16px; padding: 26px; }
+#biz .card h3 { margin: 0 0 8px; font-size: 19px; }
+#biz .card p { margin: 0; font-size: 15px; color: #64748b; }
+#biz .icon { width: 40px; height: 40px; border-radius: 10px;
+             display: grid; place-items: center; font-size: 20px;
+             margin-bottom: 14px; background: #eef2ff; }
+#biz .videos { display: grid; grid-template-columns: 1fr 1fr;
+               gap: 28px 24px; }
+#biz .videos video, #biz .fail video {
+  width: 100%; aspect-ratio: 2/1; object-fit: contain; background: #0f172a;
+  border-radius: 14px; box-shadow: 0 8px 30px #0f172a1a;
+}
+#biz figcaption { font-size: 14px; color: #64748b; margin-top: 10px; }
+#biz figcaption b { color: #0f172a; }
+#biz table { font-size: 15px; }
+#biz th, #biz td { text-align: left; padding: 14px 12px;
+                   border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+#biz th { font-size: 13px; color: #64748b; font-weight: 600;
+          text-transform: uppercase; letter-spacing: .04em; }
+#biz td b { color: #0f172a; }
+#biz .note { font-size: 13px; color: #94a3b8; margin-top: 10px; }
+#biz .check { list-style: none; padding: 0; margin: 0; }
+#biz .check li { padding: 10px 0 10px 34px; position: relative;
+                 border-bottom: 1px solid #f1f5f9; font-size: 15px; }
+#biz .check li::before {
+  position: absolute; left: 0; top: 10px; width: 22px; height: 22px;
+  border-radius: 6px; display: grid; place-items: center;
+  font-size: 13px; font-weight: 700;
+}
+#biz .check.done li::before { content: "\2713"; background: #dcfce7;
+                              color: #15803d; }
+#biz .check.todo li::before { content: "\2026"; background: #fef3c7;
+                              color: #b45309; }
+#biz .fail { display: grid; grid-template-columns: 420px 1fr; gap: 20px;
+             align-items: center; }
+#biz .fail + .fail { margin-top: 40px; }
+#biz .pill { display: inline-block; font-size: 12px; font-weight: 600;
+             padding: 3px 10px; border-radius: 999px; margin-right: 6px; }
+#biz .pill.r { background: #fee2e2; color: #b91c1c; }
+#biz .pill.y { background: #fef3c7; color: #b45309; }
+#biz .pill.g { background: #dcfce7; color: #15803d; }
+#biz .bar { display: flex; height: 58px; border-radius: 14px;
+            overflow: hidden; margin: 8px 0 28px;
+            font-weight: 700; color: #fff; font-size: 15px; }
+#biz .bar div { display: grid; place-items: center; }
+#biz .phase h3 { display: flex; align-items: center; gap: 10px; }
+#biz .phase h3 i { font-style: normal; font-size: 13px; color: #fff;
+                   padding: 2px 9px; border-radius: 999px; }
+#biz .phase ul { margin: 10px 0 0; padding-left: 18px; font-size: 15px; }
+#biz .phase li { margin: 4px 0; }
+#biz .quote {
+  font-size: 24px; line-height: 1.45; color: #0f172a; font-weight: 600;
+  border-left: 4px solid #4f46e5; padding: 6px 0 6px 22px;
+  margin: 0 0 40px; max-width: 820px; letter-spacing: -.01em;
+}
+#biz .tall { display: flex; gap: 20px; }
+#biz .tall figure { flex: 1; }
+#biz .tall video, #biz .tall img {
+  width: 100%; aspect-ratio: 9/16; object-fit: cover;
+  border-radius: 14px; border: 1px solid #e2e8f0;
+}
+#biz footer { padding: 48px 0 64px; color: #94a3b8; font-size: 14px;
+              border-top: 1px solid #e2e8f0; }
+
+/* ---------- engineering view ---------- */
+#fx {
+  position: fixed; inset: 0; width: 100%; height: 100%;
+  pointer-events: none; display: none;
+}
+#fx { z-index: 1; }
+body[data-view="eng"] { background: #e3faf1; }
+body[data-view="eng"] #fx { display: block; }
+#eng {
+  font: 14.5px/1.65 "JetBrains Mono", ui-monospace, monospace;
+  color: #134e4a;
+}
+#eng a { color: #047857; }
+#eng .hero { padding: 96px 0 40px; }
+#eng .prompt { color: #059669; font-weight: 700; }
+#eng h1 { font-size: 36px; line-height: 1.2; margin: 10px 0 16px;
+          color: #064e3b; }
+#eng h1 .cursor { display: inline-block; width: .55em; height: 1em;
+                  background: #10b981; vertical-align: -0.12em;
+                  animation: blink 1s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+#eng .lead { max-width: 760px; color: #115e59; }
+#eng .panel {
+  background: #fffffff5;
+  border: 1px solid #a7f3d0; border-radius: 10px; padding: 22px 24px;
+  margin: 18px 0; box-shadow: 0 2px 0 #6ee7b7;
+}
+#eng h2 { font-size: 20px; color: #064e3b; margin: 0 0 4px; }
+#eng h2::before { content: "## "; color: #10b981; }
+#eng h3 { font-size: 15px; color: #065f46; margin: 22px 0 6px; }
+#eng h3::before { content: "> "; color: #10b981; }
+#eng .muted { color: #4b8f80; font-size: 13px; }
+#eng table { font-size: 12.5px; margin: 10px 0; }
+#eng th, #eng td { text-align: left; padding: 6px 8px;
+                   border-bottom: 1px dashed #a7f3d0; vertical-align: top; }
+#eng th { color: #047857; font-weight: 700; background: #ecfdf5; }
+#eng td.ok { color: #047857; font-weight: 700; }
+#eng td.no { color: #be123c; font-weight: 700; }
+#eng code, #eng .k { background: #d1fae5; padding: 1px 5px;
+                     border-radius: 4px; color: #065f46; }
+#eng pre {
+  background: #064e3b; color: #a7f3d0; padding: 16px 18px;
+  border-radius: 8px; overflow-x: auto; font-size: 12.5px; margin: 10px 0;
+}
+#eng pre .c { color: #6ee7b7; opacity: .7; }
+#eng .stats { display: grid; grid-template-columns: repeat(4, 1fr);
+              gap: 12px; margin-top: 26px; }
+#eng .stat { background: #fffffff5; border: 1px solid #a7f3d0;
+             border-radius: 10px; padding: 14px 16px; }
+#eng .stat b { display: block; font-size: 24px; color: #059669; }
+#eng .stat span { font-size: 12px; color: #4b8f80; }
+#eng .toc { display: flex; flex-wrap: wrap; gap: 8px; margin: 22px 0 0; }
+#eng .toc a { font-size: 12.5px; padding: 4px 10px; border-radius: 6px;
+              background: #d1fae5; text-decoration: none; }
+#eng .row { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+#eng .fig img, #eng .fig video {
+  width: 100%; border-radius: 8px; border: 1px solid #a7f3d0;
+  background: #064e3b;
+}
+#eng .fig video { aspect-ratio: 2/1; object-fit: contain; }
+#eng .row3 { display: grid; grid-template-columns: repeat(3, 1fr);
+             gap: 14px; margin-top: 12px; }
+#eng figcaption { font-size: 12px; color: #4b8f80; margin-top: 6px; }
+#eng details { border-top: 1px dashed #a7f3d0; padding: 10px 0; }
+#eng details:first-of-type { border-top: 0; }
+#eng summary { cursor: pointer; font-weight: 700; color: #064e3b;
+               list-style: none; }
+#eng summary::-webkit-details-marker { display: none; }
+#eng summary::before { content: "[+] "; color: #10b981; }
+#eng details[open] summary::before { content: "[-] "; }
+#eng .tag { font-size: 11px; padding: 1px 7px; border-radius: 4px;
+            margin-left: 6px; font-weight: 700; vertical-align: 1px; }
+#eng .tag.fix { background: #d1fae5; color: #047857; }
+#eng .tag.open { background: #ffe4e6; color: #be123c; }
+#eng .tag.skip { background: #fef3c7; color: #b45309; }
+#eng dl { display: grid; grid-template-columns: 150px 1fr; gap: 4px 14px;
+          margin: 8px 0 0 22px; font-size: 13px; }
+#eng dt { color: #047857; }
+#eng dd { margin: 0; }
+#eng footer { padding: 30px 0 60px; color: #4b8f80; font-size: 12.5px; }
+
+@media (max-width: 820px) {
+  #biz h1 { font-size: 38px; }
+  #biz .kpis, #eng .stats { grid-template-columns: 1fr 1fr; }
+  #biz .grid2, #biz .grid3, #eng .row, #eng .row3, #biz .fail
+    { grid-template-columns: 1fr; }
+  #biz .videos { grid-template-columns: 1fr; }
+  #eng dl { grid-template-columns: 1fr; margin-left: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #fx { display: none !important; }
+}
+</style>
+</head>
+<body data-view="biz">
+
+<div class="switch" role="group" aria-label="Page version">
+  <button data-v="biz" aria-pressed="true">Business</button>
+  <button data-v="eng" aria-pressed="false">Engineering</button>
+</div>
+<canvas id="fx"></canvas>
+
+<!-- ===================== BUSINESS VIEW ===================== -->
+<main id="biz" class="view">
+
+<header class="hero"><div class="wrap">
+  <span class="eyebrow">Robot automation &middot; Vision-language-action
+    models</span>
+  <h1>A parcel sorting cell, <span>built for under US$700</span> of
+    hardware.</h1>
+  <p class="lead">One low-cost robot arm picks each parcel from a heap,
+  places it in a flip zone, turns the label face down and pushes it to
+  the next station. It learned the
+  job from about 100 human demonstrations, with no hand-written motion
+  code.</p>
+  <div class="cta">
+    <a class="btn primary" href="#outcome">See the results</a>
+    <a class="btn" href="#skills">One model, many skills</a>
+    <a class="btn" href="#plan">How I plan a deployment</a>
+    <a class="btn" href="#" data-go="eng">Engineering details &rarr;</a>
+  </div>
+  <div class="kpis">
+    <div class="kpi"><b>17 s</b><span>per parcel on a 5-parcel heap.
+      A human with the same arm took about 25 s.</span></div>
+    <div class="kpi"><b>5 / 5</b><span>parcels sorted, labels correct,
+      no human help (best model, one test heap).</span></div>
+    <div class="kpi"><b>~US$650</b><span>arm, cameras and mounts.
+      Training ran on one laptop, no cloud cost.</span></div>
+    <div class="kpi"><b>3 weeks</b><span>to build the parcel cell, one
+      engineer, after a 2-week pick-and-place warm-up.</span></div>
+  </div>
+</div></header>
+
+<section id="demo"><div class="wrap">
+  <h2>See it work</h2>
+  <p class="sub">Real robot, real parcels, no speed-up unless the caption
+  says so.</p>
+  <div class="videos">
+    <figure><video src="videos/heap5_diffusion_bsp.mp4"
+      poster="videos/heap5_diffusion_bsp.jpg" autoplay muted loop
+      playsinline></video>
+      <figcaption><b>Clear a heap.</b> 5 parcels, 5 episodes, 86 s, no
+      help. Played at 2&times;.</figcaption></figure>
+    <figure><video src="videos/heap5_flip.mp4"
+      poster="videos/heap5_flip.jpg" autoplay muted loop
+      playsinline></video>
+      <figcaption><b>Label down.</b> The small box has its label up: the
+      arm flips it, then pushes it out.</figcaption></figure>
+    <figure><video src="videos/fbs_box_on_box.mp4"
+      poster="videos/fbs_box_on_box.jpg" autoplay muted loop
+      playsinline></video>
+      <figcaption><b>New case.</b> Take only the top box of a stack
+      (top and wrist cameras).</figcaption></figure>
+    <figure><video src="videos/demo_box_stack.mp4"
+      poster="videos/demo_box_stack.jpg" autoplay muted loop
+      playsinline></video>
+      <figcaption><b>How it learns.</b> A person shows the task once with
+      a second arm. 20 of these taught the new case.</figcaption></figure>
+  </div>
+</div></section>
+
+<section id="outcome" class="alt"><div class="wrap">
+  <h2>What it means for your operation</h2>
+  <p class="sub">The numbers below are measured on the robot. Where a
+  number is an estimate, it says so.</p>
+  <div class="grid3">
+    <div class="card"><div class="icon">&#9201;</div>
+      <h3>Cycle time</h3>
+      <p>15-23 s per parcel at 1.5&times; demo speed. At 17 s, that is
+      about 210 parcels per hour if no pick fails. Long runs are not
+      measured yet.</p></div>
+    <div class="card"><div class="icon">&#128176;</div>
+      <h3>Low entry cost</h3>
+      <p>A US$250-class arm and three cameras. The model runs on a laptop
+      GPU. The demo arm is only needed to teach, not to run.</p></div>
+    <div class="card"><div class="icon">&#128260;</div>
+      <h3>Teach, don't program</h3>
+      <p>A new case (box on a box) was added with 20 demonstrations and
+      one retrain. It works, not yet perfectly. No motion code.</p></div>
+    <div class="card"><div class="icon">&#128737;</div>
+      <h3>Speed you can set</h3>
+      <p>The motion speed is one setting. We run at 1.5&times;: faster
+      cuts cycle time but fails more often and hits harder.</p></div>
+    <div class="card"><div class="icon">&#9889;</div>
+      <h3>Small computer</h3>
+      <p>On the robot, planning went from 88 ms to 18 ms. The arm no
+      longer waits for a plan. A cheaper edge GPU may run the cell
+      (not tested).</p></div>
+    <div class="card"><div class="icon">&#128202;</div>
+      <h3>Scored by a script</h3>
+      <p>Each parcel has a marker on its label, so results are counted
+      by software, not by a person.</p></div>
+  </div>
+
+  <h3 style="margin-top:56px">Faster planning, measured on the robot</h3>
+  <p>We measure first, then fix the slow part. Each fix must keep the
+  output within a fraction of a degree of the original model.</p>
+  <table>
+    <tr><th>Model</th><th>Before</th><th>After</th><th>Change</th></tr>
+    <tr><td><b>Diffusion</b> (main model)</td><td>88 ms</td>
+        <td>18 ms</td><td>TensorRT FP16 engine</td></tr>
+    <tr><td><b>SmolVLA</b> (vision-language model)</td><td>325 ms</td>
+        <td>141 ms</td><td>Half-precision weights, then compiled
+        denoising steps</td></tr>
+  </table>
+  <p class="note">The SmolVLA step was slow because of overhead, not
+  compute. Each step sends about 1,200 small jobs to the GPU, and the
+  GPU waits for the CPU to send each one. Compiling the step joins
+  them: one step went from 13.2 ms to 3.4 ms. A TensorRT export of
+  SmolVLA gave almost no gain and too much error, so we do not use it.
+  In 3-episode robot tests, success and smoothness did not change. The
+  gain is time in hand for more speed or a larger model.</p>
+  <p class="note"><b>Lesson:</b> faster plans did not make more parcels
+  succeed. The failures come from the model, not from speed. Thus
+  reliability comes first, and speed work comes after it.</p>
+
+  <h3 style="margin-top:56px">Budget</h3>
+  <table>
+    <tr><th>Item</th><th>Approx. cost (USD)</th><th>Needed to run?</th></tr>
+    <tr><td><b>SO-101 follower arm</b> (6 Feetech servos)</td>
+        <td>~130</td><td>Yes</td></tr>
+    <tr><td><b>SO-101 leader arm</b> (to record demos)</td>
+        <td>~120</td><td>No, only to teach</td></tr>
+    <tr><td><b>Intel RealSense camera</b> (top view, colour only)</td>
+        <td>~300</td><td>Yes (a US$30 webcam may do)</td></tr>
+    <tr><td><b>2 USB cameras</b> (wrist, side)</td><td>~50</td>
+        <td>Yes</td></tr>
+    <tr><td><b>3D-printed mounts, clamp, tray</b></td><td>~50</td>
+        <td>Yes</td></tr>
+    <tr><td><b>Laptop GPU</b> (RTX PRO 500, 6 GB)</td><td>existing</td>
+        <td>Yes</td></tr>
+    <tr><td><b>Cloud training</b></td><td>0</td><td>-</td></tr>
+  </table>
+  <p class="note">Approximate list prices, laptop not counted. All
+  training ran on the
+  laptop: about 56 GPU-hours for the four main models.</p>
+</div></section>
+
+<section id="status"><div class="wrap">
+  <h2>Done, and not done yet</h2>
+  <p class="sub">A clear line between what is shown and what is still a
+  plan.</p>
+  <div class="grid2">
+    <div class="card"><h3>Done and measured</h3>
+      <ul class="check done">
+        <li>Pick, place, flip and push for bags and boxes, learned from
+        demos</li>
+        <li>5-parcel heap cleared with no help (best model)</li>
+        <li>Label decision: every flip on the 5-parcel heap was
+        correct</li>
+        <li>Motion speed as a setting, with smooth motion</li>
+        <li>5&times; faster planning and steady 50 Hz control, on the
+        robot</li>
+        <li>New case (box on a box) added with demos</li>
+        <li>A text command picks the skill on the robot (a person as
+        the planner)</li>
+      </ul></div>
+    <div class="card"><h3>Not done yet</h3>
+      <ul class="check todo">
+        <li>Stress test: hours of running, many heaps, success rate
+        with confidence</li>
+        <li>A real conveyor in and out</li>
+        <li>Safety: guards, force limits, stop zones</li>
+        <li>Black box against black bag (below)</li>
+        <li>Pick up parcels that fall onto the table (below)</li>
+        <li>Automatic skill planner: it runs on the robot, but it mixes
+        up touching dark parcels</li>
+      </ul></div>
+  </div>
+</div></section>
+
+<section id="limits" class="alt"><div class="wrap">
+  <h2>Known failures we chose not to fix yet</h2>
+  <p class="sub">Each has a cause we understand and a fix we know. We
+  left them for now because the cell design can remove them more
+  cheaply than more training.</p>
+  <div class="fail">
+    <figure><video src="videos/heap8_black_box_push.mp4"
+      poster="videos/heap8_black_box_push.jpg" autoplay muted loop
+      playsinline></video>
+      <figcaption>SmolVLA: gripper closed, it pushes the black box
+      like a bag.</figcaption></figure>
+    <div><span class="pill r">Wrong skill</span>
+      <h3>Black box looks like a black bag</h3>
+      <p>The box and the bags are the same colour, and the top camera
+      image is small. All three models sometimes used the bag push on
+      the black box. When the two touch, the arm can aim at the gap
+      between them (<a href="#skills">below</a>). <b>Fix options:</b>
+      parcels of a different colour in the infeed, a better top camera,
+      or a planner with a parcel detector.</p></div>
+  </div>
+  <div class="fail">
+    <figure><video src="videos/heap8_scatter.mp4"
+      poster="videos/heap8_scatter.jpg" autoplay muted loop
+      playsinline></video>
+      <figcaption>Moving one parcel drags others off the tray. 2&times;.
+      </figcaption></figure>
+    <div><span class="pill r">Recovery</span>
+      <h3>Parcels on the table</h3>
+      <p>When the arm drags other parcels off the tray, or a box falls,
+      no demo shows how to get them back. The model does not go to
+      them. <b>Fix options:</b> a tray with walls (a cell change), or
+      demos of the recovery.</p></div>
+  </div>
+  <div class="fail">
+    <figure><video src="videos/heap8_far_edge.mp4"
+      poster="videos/heap8_far_edge.jpg" autoplay muted loop
+      playsinline></video>
+      <figcaption>Hover at the far edge; it grasps only after a hand
+      moves the box closer. 2&times;.</figcaption></figure>
+    <div><span class="pill y">Reach</span>
+      <h3>Parcels at the far edge</h3>
+      <p>The arm can reach, but only 14 of 99 demos grasp that far, so
+      the model stops short. <b>Fix options:</b> a smaller tray inside
+      the strong reach, or more demos there.</p></div>
+  </div>
+</div></section>
+
+<section id="skills"><div class="wrap">
+  <h2>Tell the arm which skill to use</h2>
+  <p class="sub">One model, several skills. A short text picks the
+  skill, so a planner or a person can steer the arm with no new
+  training. We tested it with a person as the planner.</p>
+  <div class="videos">
+    <figure><video src="videos/skill_switch_top_bag.mp4"
+      poster="videos/skill_switch_top_bag.jpg" autoplay muted loop
+      playsinline></video>
+      <figcaption><b>The text picks the skill.</b> Key 3 sends the
+      "top box" text: the arm lifts only the top box. Key 2 sends the
+      "bag" text: it takes the bag next. Played 2&times;.
+      </figcaption></figure>
+    <figure><video src="videos/grasp_gap.mp4"
+      poster="videos/grasp_gap.jpg" autoplay muted loop
+      playsinline></video>
+      <figcaption><b>Where it fails.</b> A black box touches a black
+      bag. The arm aims at the gap between them and closes on air
+      (top and wrist cameras).</figcaption></figure>
+  </div>
+  <div class="grid3" style="margin-top:40px">
+    <div class="card"><h3>The words must differ</h3>
+      <p>Texts that differ in one word ("box" or "bag") had no effect.
+      Texts with no shared word work: the bag text fits 89 % of the
+      bag frames (chance: 20 %).</p></div>
+    <div class="card"><h3>Five skills, one model</h3>
+      <p>Two more skills did not make the first three weaker. But a
+      new skill needs about 20 demos: 13-16 were too few.</p></div>
+    <div class="card"><h3>Seeing is the limit</h3>
+      <p>The arm follows the text. The weak part is the view: the
+      planner and the arm both take two touching dark parcels as
+      one.</p></div>
+  </div>
+  <figure style="margin-top:40px"><img
+    src="assets/skill_text_findings.jpg" style="border-radius:14px"
+    alt="Touching black parcels seen as one, and the top-box skill">
+    <figcaption><b>(a)</b> The planner's top view makes one region of
+    the black box and the black bag. <b>(b)</b> The arm closes in the
+    gap between them. <b>(c)</b> With the top-box text, the arm lifts
+    the top box off the stack.</figcaption></figure>
+  <p class="note"><b>Lesson:</b> split the job. A planner decides
+  <i>what</i> to do, and the learned arm does <i>how</i>. The arm part
+  works. The next work is a better parcel detector for the planner,
+  and more demos for each skill.</p>
+</div></section>
+
+<section id="plan" class="alt"><div class="wrap">
+  <h2>How I plan a deployment</h2>
+  <p class="sub">Most robot projects spend their time on the model. I
+  think the plan and the cell decide most of the result.</p>
+  <p class="quote">The hardware and automation team should have the same
+  decision power as the robot software team. A hard AI problem is often
+  an easy fix in the environment.</p>
+  <p class="quote">First make sure the robot model is reliable for the
+  task. Then make it faster. Speed work before that wastes time and
+  focus.</p>
+
+  <div class="bar">
+    <div style="flex:40;background:#4f46e5">40% Plan</div>
+    <div style="flex:30;background:#0891b2">30% Cell</div>
+    <div style="flex:20;background:#10b981">20% Train</div>
+    <div style="flex:10;background:#f59e0b">10% Test</div>
+  </div>
+  <div class="grid2">
+    <div class="card phase"><h3><i style="background:#4f46e5">40%</i>
+      Plan the automation</h3>
+      <ul>
+        <li>Write the process step by step. What does the robot do, and
+        what stays with people?</li>
+        <li>Sort steps into easy and reliable, and hard.</li>
+        <li>Set the requirements: cycle time, success rate, no damage to
+        parcels or equipment, budget.</li>
+        <li>Check the robot limits: reach, payload, speed.</li>
+      </ul></div>
+    <div class="card phase"><h3><i style="background:#0891b2">30%</i>
+      Build the cell, try ideas</h3>
+      <ul>
+        <li>Make quick, small prototypes of each approach.</li>
+        <li>Pick the one that meets the requirements, not the most
+        advanced one.</li>
+        <li>Fix collisions, camera views and reach with hardware
+        first.</li>
+      </ul></div>
+    <div class="card phase"><h3><i style="background:#10b981">20%</i>
+      Data, train, test</h3>
+      <ul>
+        <li>Record a clean, balanced demo set for the chosen
+        approach.</li>
+        <li>Train, pick the model on the robot, fine-tune once.</li>
+        <li>Reliability first. Work on cycle time only when the model
+        clears the task every time.</li>
+      </ul></div>
+    <div class="card phase"><h3><i style="background:#f59e0b">10%</i>
+      Stress test</h3>
+      <ul>
+        <li>Long runs, new heaps, bad light, busy computer.</li>
+        <li>Count side effects too: dropped, pushed and damaged
+        parcels.</li>
+      </ul></div>
+  </div>
+
+  <h3 style="margin-top:56px">In this project: cell fixes that beat
+    model fixes</h3>
+  <div class="grid2" style="align-items:start">
+    <table>
+      <tr><th>Problem</th><th>Cell fix</th></tr>
+      <tr><td>The 180&deg; label flip made the wrist camera hit the
+          table</td><td><b>Camera one joint back.</b> Full flip, no
+          contact.</td></tr>
+      <tr><td>Grasps were hard at the old angle</td>
+          <td><b>New base height.</b> An easier grasp angle on every
+          parcel.</td></tr>
+      <tr><td>Pushing parcels out of the heap was slow and different
+          each time</td><td><b>Pick and place, not push.</b> One 2 s
+          move to the flip zone for every parcel.</td></tr>
+      <tr><td>Results depended on who counted</td>
+          <td><b>Markers on labels.</b> A script scores each run.</td></tr>
+    </table>
+    <div class="tall">
+      <figure><video src="videos/wrist_camera_roll.mp4"
+        poster="videos/wrist_camera_roll.jpg" autoplay muted loop
+        playsinline></video>
+        <figcaption><b>Camera mount.</b> Moved one joint back.
+        </figcaption></figure>
+      <figure><img src="assets/robot_base_height.jpg"
+        alt="SO-101 arm clamped at the chosen base height">
+        <figcaption><b>Base height.</b> Set for an easier grasp angle.
+        </figcaption></figure>
+    </div>
+  </div>
+</div></section>
+
+<section><div class="wrap">
+  <h2>Next steps</h2>
+  <div class="grid3">
+    <div class="card"><h3>Stress test</h3><p>Many heaps and long runs,
+      to give a success rate with error bars.</p></div>
+    <div class="card"><h3>Planner that sees</h3><p>The arm already
+      follows the skill text. Next: a parcel detector that separates
+      touching parcels, so the planner can pick the text on its
+      own.</p></div>
+    <div class="card"><h3>Real conveyor</h3><p>Move from a tray and a
+      table to a real infeed and outfeed.</p></div>
+  </div>
+</div></section>
+
+<footer><div class="wrap">Zhen Ting Lee &middot; 2026 &middot;
+  <a href="https://github.com/">GitHub</a> &middot;
+  <a href="https://huggingface.co/Low101">Hugging Face</a> &middot;
+  <a href="#" data-go="eng">Engineering version</a>
+</div></footer>
+</main>
+
+<!-- ===================== ENGINEERING VIEW ===================== -->
+<main id="eng" class="view"><div class="wrap">
+
+<header class="hero">
+  <div class="prompt">zt@so101:~/parcel_cell$ cat README --verbose</div>
+  <h1>Parcel sorting with imitation learning on a 6 GB laptop
+    <span class="cursor"></span></h1>
+  <p class="lead">SO-101 arm, 3 cameras, LeRobot. Diffusion Policy and
+  SmolVLA trained from teleoperated demos, B-spline execution, inference
+  speed-ups, DAgger rounds and a VLM skill planner. Every bug, how it got
+  in, how we found it and what fixed it.</p>
+  <div class="stats">
+    <div class="stat"><b>5/5</b><span>5-parcel heap, Diffusion-BSP B,
+      1.5x, 86 s</span></div>
+    <div class="stat"><b>88&rarr;18</b><span>ms per plan on the robot,
+      TensorRT FP16, error 0.15&deg;</span></div>
+    <div class="stat"><b>4.6&rarr;0.5</b><span>reversals/s at 1x after
+      the segment blend</span></div>
+    <div class="stat"><b>0.96</b><span>planner stack AUC (linear probe,
+      grouped 5-fold CV)</span></div>
+  </div>
+  <nav class="toc">
+    <a href="#e-setup">setup</a><a href="#e-data">datasets</a>
+    <a href="#e-models">models</a><a href="#e-offline">offline eval</a>
+    <a href="#e-robot">robot eval</a><a href="#e-bugs">bugs.log</a>
+    <a href="#e-speed">inference</a><a href="#e-dagger">dagger</a>
+    <a href="#e-skills">skill texts</a>
+    <a href="#e-planner">planner</a><a href="#e-open">open issues</a>
+    <a href="#e-config">config</a>
+  </nav>
+</header>
+
+<div class="panel" id="e-setup">
+  <h2>setup</h2>
+  <table>
+    <tr><th>Part</th><th>Spec</th></tr>
+    <tr><td>Arm</td><td>SO-101 follower (12 V, Feetech STS3215), SO-101
+        leader (5 V) for teleop and DAgger takeover</td></tr>
+    <tr><td>Top camera</td><td>RealSense colour, YUYV, 848x480 @30
+        (1280x720 dropped frames in the encoder)</td></tr>
+    <tr><td>Wrist / side</td><td>USB MJPG 640x480 @30. Wrist camera one
+        joint back so the 180&deg; roll does not hit the table</td></tr>
+    <tr><td>Compute</td><td>RTX PRO 500 Blackwell, 6 GB VRAM: training
+        and inference, one job at a time</td></tr>
+    <tr><td>Task</td><td>home &rarr; pick from heap &rarr; place in flip
+        zone &rarr; flip if label up &rarr; push off, label down
+        &rarr; home. One parcel per episode</td></tr>
+  </table>
+</div>
+
+<div class="panel" id="e-data">
+  <h2>datasets</h2>
+  <p class="muted">All 30 fps. All parcel datasets use one task text:
+  "sort the parcel so the label faces down and push it off the
+  table". Exception: the skill-text copies (<code>parcel-sort-b-sk3d
+  </code>, <code>-sk5d</code>) give each episode its skill text
+  (<a href="#e-skills">skill texts</a>).</p>
+  <table>
+    <tr><th>Dataset</th><th>Eps</th><th>Frames</th><th>Content</th>
+        <th>Used</th></tr>
+    <tr><td><code>lerobot-so101-first-act</code></td><td>50</td>
+        <td>32,589</td><td>cube, varied layout</td><td class="no">dropped
+        </td></tr>
+    <tr><td><code>second-act-attempt</code></td><td>51</td>
+        <td>26,583</td><td>cube, one taped spot</td><td>baseline</td></tr>
+    <tr><td><code>third-act-attempt</code></td><td>151</td>
+        <td>66,907</td><td>cube, square + 5 X marks</td><td>cube models
+        </td></tr>
+    <tr><td><code>parcel-sort-a</code> (A1)</td><td>100</td>
+        <td>101,642</td><td>parcel, push approach, 15 heaps</td>
+        <td>A1 models</td></tr>
+    <tr><td><code>parcel-sort-b</code> (B)</td><td>99</td>
+        <td>73,444</td><td>parcel, pick and place, 20 heaps, 61 flip / 38
+        no flip</td><td class="ok">main</td></tr>
+    <tr><td><code>rollout_dagger_parcel_b</code></td><td>83</td>
+        <td>60,409</td><td>corrections, all failure tags</td>
+        <td class="no">round 1 failed</td></tr>
+    <tr><td>far-edge corrections (cut)</td><td>16</td>
+        <td>6,377</td><td>pick + place only (4 of 20 dropped)</td>
+        <td>fe, fb</td></tr>
+    <tr><td><code>parcel-skill-boxstack-cut</code></td><td>20</td>
+        <td>13,965</td><td>box-on-box full demos</td><td>box, fb (3x)
+        </td></tr>
+    <tr><td><code>rollout_dagger_far_stack_pull</code></td><td>30</td>
+        <td>5,161</td><td>stack corrections (2 of 32 dropped)</td>
+        <td>fbs</td></tr>
+  </table>
+  <p class="muted">fbs merged mix: 205 episodes, 126,877 frames. Frame
+  share: B 58 %, box 33 %, far edge 5 %, stack 4 %.</p>
+</div>
+
+<div class="panel" id="e-models">
+  <h2>models</h2>
+  <table>
+    <tr><th>Run</th><th>Init</th><th>Steps</th><th>Batch</th>
+        <th>Time</th><th>Loss</th></tr>
+    <tr><td><code>diffusion_parcel_b_80k</code></td><td>scratch</td>
+        <td>80k</td><td>16</td><td>9.4 h</td><td>0.005</td></tr>
+    <tr><td><code>diffusion_bsp_parcel_b_40k</code></td><td>diffusion
+        b</td><td>40k</td><td>16</td><td>5.1 h</td><td>0.018</td></tr>
+    <tr><td><code>smolvla_parcel_b_80k</code></td><td>smolvla_base</td>
+        <td>80k</td><td>12</td><td>27.4 h</td><td>0.025</td></tr>
+    <tr><td><code>smolvla_bsp_parcel_b_40k</code></td><td>smolvla b</td>
+        <td>40k</td><td>12</td><td>13.8 h</td><td>0.100</td></tr>
+    <tr><td><code>smolvla_parcel_b_fb</code> (10k picked)</td>
+        <td>smolvla b</td><td>15k</td><td>12</td><td>-</td><td>-</td></tr>
+    <tr><td><code>smolvla_parcel_b_fbs</code> (10k)</td><td>fb 10k</td>
+        <td>10k</td><td>12</td><td>-</td><td>-</td></tr>
+    <tr><td><code>smolvla_parcel_b_sk3d_10k</code></td><td>smolvla b</td>
+        <td>10k</td><td>12</td><td>~3.4 h</td><td>-</td></tr>
+    <tr><td><code>smolvla_parcel_b_sk5d_10k</code></td><td>smolvla b</td>
+        <td>10k</td><td>12</td><td>3.4 h</td><td>-</td></tr>
+  </table>
+  <p class="muted">Diffusion 89M (U-Net shrunk; default 278M did not fit
+  6 GB). SmolVLA 450M, 100M trained (VLM frozen, action expert
+  only).</p>
+</div>
+
+<div class="panel" id="e-offline">
+  <h2>offline eval (dataset B)</h2>
+  <p class="muted">Test 1: MAE (deg, 5 arm joints, next 1 s). Test 2:
+  flip decision on 99 eps (probe ceiling 95). Test 3: share of
+  predictions that follow swapped images.</p>
+  <table>
+    <tr><th>Model</th><th>T1 train ref</th><th>T1 held-out</th>
+        <th>T2 /99</th><th>T3 flip img</th><th>T3 no-flip img</th></tr>
+    <tr><td>SmolVLA B 80k</td><td class="ok">1.91</td><td>11.44</td>
+        <td>95</td><td>0.39</td><td>0.90</td></tr>
+    <tr><td>SmolVLA-BSP B</td><td>2.39</td><td>12.04</td><td>93</td>
+        <td>0.29</td><td>0.92</td></tr>
+    <tr><td>Diffusion B</td><td>2.02</td><td>11.56</td><td>95</td>
+        <td>0.47</td><td>0.95</td></tr>
+    <tr><td>Diffusion-BSP B</td><td>3.08</td><td>12.40</td><td>91</td>
+        <td>0.61</td><td>1.00</td></tr>
+  </table>
+  <p>Offline, SmolVLA fits best. On the robot, Diffusion-BSP is best.
+  The held-out eps are old pilot eps with another approach, so the
+  held-out error is high for all. T3 says a missed flip is more likely
+  than a wrong flip.</p>
+</div>
+
+<div class="panel" id="e-robot">
+  <h2>robot eval (dataset B)</h2>
+  <h3>5-parcel heap (hard)</h3>
+  <table>
+    <tr><th>Model</th><th>Cleared</th><th>Time</th><th>Labels</th>
+        <th>Failure mode</th></tr>
+    <tr><td>Diffusion-BSP, 1.5x</td><td class="ok">5/5</td>
+        <td>86 s</td><td>5/5</td><td>-</td></tr>
+    <tr><td>SmolVLA-BSP, 1.5x</td><td>4/5</td><td>219 s</td>
+        <td>4/4</td><td>17-27 s idle at start; no grasp on small
+        boxes</td></tr>
+    <tr><td>SmolVLA RTC</td><td>3/5</td><td>231 s (limit)</td>
+        <td>3/3</td><td>75 s hover before grasp</td></tr>
+  </table>
+  <h3>8-parcel heap (wider than training)</h3>
+  <table>
+    <tr><th>Model</th><th>Success (log)</th><th>No help</th>
+        <th>Main failure</th></tr>
+    <tr><td>Diffusion-BSP, 1.5x</td><td>6/8</td><td>5/8</td>
+        <td>stops at far edge</td></tr>
+    <tr><td>SmolVLA-BSP, 1.5x</td><td>3/8</td><td>1/8</td>
+        <td>moves other parcels off the tray</td></tr>
+    <tr><td>SmolVLA RTC</td><td>8/8 in 341 s</td><td>-</td>
+        <td>black box treated as a bag</td></tr>
+  </table>
+  <h3>Medium (bag on bag + box on box)</h3>
+  <p>All 3 models: 2/4 with no help. Bag on bag works (about 25 training
+  starts). Box on box fails (5 training starts): pushed as one stack,
+  or the bottom box falls.</p>
+  <h3>Skill fine-tunes, 3-parcel heap, Nov 16</h3>
+  <table>
+    <tr><th>Model</th><th>Cleared</th><th>Time</th><th>Still</th>
+        <th>Jerk deg/f&sup2;</th><th>Flips/s</th></tr>
+    <tr><td>smolvla_b_fbs 10k</td><td>3/3</td><td>85 s</td><td>7 %</td>
+        <td>0.147</td><td>1.1</td></tr>
+    <tr><td>smolvla_b_fb 10k</td><td class="ok">3/3</td><td>75 s</td>
+        <td>0 %</td><td>0.158</td><td>1.2</td></tr>
+  </table>
+  <div class="row">
+    <figure class="fig"><video src="videos/heap5_diffusion_bsp.mp4"
+      poster="videos/heap5_diffusion_bsp.jpg" autoplay muted loop
+      playsinline></video>
+      <figcaption>Diffusion-BSP B, 5-heap, eps 0-4 back to back,
+      1.5x speed, played 2x.</figcaption></figure>
+    <figure class="fig"><video src="videos/medium_box_stack.mp4"
+      poster="videos/medium_box_stack.jpg" autoplay muted loop
+      playsinline></video>
+      <figcaption>SmolVLA B (RTC), medium, 66-87 s: the box-on-box
+      stack goes off as one parcel.</figcaption></figure>
+  </div>
+  <p class="muted">Caveat: one heap per model, layouts not identical.
+  Indication, not a controlled test.</p>
+</div>
+
+<div class="panel" id="e-bugs">
+  <h2>bugs.log</h2>
+  <p class="muted">Symptom, how it got in, how we found it, fix,
+  result. Click to expand.</p>
+
+  <details><summary>ACT jerks every 100 frames<span class="tag fix">
+    fixed</span></summary><dl>
+    <dt>symptom</dt><dd>Jumps up to 69.9&deg; at frames 100, 200,
+      300.</dd>
+    <dt>got in</dt><dd>ACT runs the full 100-step chunk blind, then
+      re-plans.</dd>
+    <dt>found</dt><dd>Joint plots of the rollout against the
+      demos.</dd>
+    <dt>fix</dt><dd>Temporal ensembling: max jump 3.1&deg;.</dd>
+  </dl></details>
+
+  <details><summary>Policy ignores the cameras at run time<span
+    class="tag fix">fixed</span></summary><dl>
+    <dt>symptom</dt><dd>Arm stalls, never closes the gripper.</dd>
+    <dt>got in</dt><dd>Start pose outside the data (shoulder lift
+      -58&deg; vs -92 to -104&deg;) and a layout that changed every
+      demo.</dd>
+    <dt>found</dt><dd>Image-swap test: camera influence about 4x lower
+      on rollout frames than on demo frames.</dd>
+    <dt>fix</dt><dd>Fixed home pose, tape markers, re-record. Then
+      spread the start spots: swap score 0.00 &rarr; 0.75.</dd>
+  </dl></details>
+
+  <details><summary>Control loop at 10-15 Hz<span class="tag fix">
+    fixed</span></summary><dl>
+    <dt>got in</dt><dd><code>prepare_observation_for_inference</code>
+      converts images to float on the CPU.</dd>
+    <dt>found</dt><dd>Loop timing logs.</dd>
+    <dt>fix</dt><dd><code>fast_prepare</code> sends uint8 to the GPU
+      first: about 25 Hz.</dd>
+  </dl></details>
+
+  <details><summary>Loop drops to 5 Hz, keys dead<span class="tag fix">
+    fixed</span></summary><dl>
+    <dt>got in</dt><dd>Rerun <code>rr.log</code> blocks; mpv reads
+      the terminal keys.</dd>
+    <dt>fix</dt><dd>Rerun off; mpv preview of the newest frame in a
+      thread, <code>--input-terminal=no</code>, global key
+      listener.</dd>
+  </dl></details>
+
+  <details><summary>Diffusion too slow to plan<span class="tag fix">
+    fixed</span></summary><dl>
+    <dt>got in</dt><dd>DDPM default, 100 steps (0.8 s).</dd>
+    <dt>fix</dt><dd>DDIM 10 steps (0.1 s); BSP uses 5.</dd>
+  </dl></details>
+
+  <details><summary>BSP jerks above 1x<span class="tag fix">fixed
+    </span></summary><dl>
+    <dt>symptom</dt><dd>Operator saw jerks at 1.35x.</dd>
+    <dt>got in</dt><dd>Each plan starts from new random noise, so the
+      new segment starts 7-9&deg; (p95) away from the last command;
+      the 4&deg;/tick clamp spreads the jump over 2-3 ticks.</dd>
+    <dt>found</dt><dd><code>--sweep</code> debug logs,
+      <code>diagnose_bsp.py</code>, offline grid of 1,920 executor
+      settings.</dd>
+    <dt>fix</dt><dd><code>--blend 0.2 --ddim-steps 5 --max-step
+      6</code>: reversals 4.6 &rarr; 0.5 /s at 1x, 8.4 &rarr; 1.2 at
+      1.5x.</dd>
+  </dl></details>
+
+  <details><summary>torch.compile recompiles, then corrupts the KV
+    cache<span class="tag fix">fixed</span></summary><dl>
+    <dt>got in</dt><dd><code>DynamicCache.crop()</code> changes the
+      stride each step (recompile). The cache holds a view of CUDA graph
+      memory that the next replay overwrites.</dd>
+    <dt>found</dt><dd><code>TORCH_LOGS="graph_breaks,recompiles"</code>;
+      PyTorch raised on the overwrite. Without that check the robot
+      would get wrong actions.</dd>
+    <dt>fix</dt><dd><code>StaticPrefixCache</code>: fixed read-only
+      prefix buffers. Step 13.2 &rarr; 3.4 ms, max diff 0.106&deg; (one
+      servo step is 0.088&deg;).</dd>
+  </dl></details>
+
+  <details><summary>RTC: three engine bugs<span class="tag fix">fixed
+    </span></summary><dl>
+    <dt>autograd</dt><dd>Guidance under <code>enable_grad</code> with
+      all params trainable. <code>FREEZE=1</code>: 273 &rarr; 204 ms,
+      same output.</dd>
+    <dt>delay</dt><dd>Queue skips <code>ceil(latency x 30)</code>, 1-2
+      more than used, so the arm jumps ahead.
+      <code>RTC_EXACT_DELAY=1</code>.</dd>
+    <dt>outlier</dt><dd>Latency tracker keeps the all-time max, so one
+      compile plan sets the delay for the run.
+      <code>COMPILE=default</code> warms both graphs first.</dd>
+    <dt>result</dt><dd>Guidance error p95 5.6 &rarr; 0.8&deg;; switch
+      accel 3.0x &rarr; 1.1x; pauses 11.9 % (sync) &rarr; 0 %.</dd>
+  </dl></details>
+
+  <details><summary>LR schedule ends early<span class="tag fix">fixed
+    </span></summary><dl>
+    <dt>got in</dt><dd>A plain resume to 80k, or the default decay of
+      30k, leaves 50k steps at min LR. BSP init from a 10k-decay config
+      had the same problem.</dd>
+    <dt>fix</dt><dd><code>--policy.scheduler_decay_steps</code>;
+      <code>train_bsp.py --warmup --decay</code>.</dd>
+  </dl></details>
+
+  <details><summary>SmolVLA-BSP VLM in float32<span class="tag fix">
+    fixed</span></summary><dl>
+    <dt>got in</dt><dd>Warm-start weights not cast to the init
+      dtype.</dd>
+    <dt>fix</dt><dd>Cast to the <code>--init</code> dtype (bf16). Plan
+      325 &rarr; 223 ms with the other fixes.</dd>
+  </dl></details>
+
+  <details><summary>DAgger round 1: robot stays at home<span
+    class="tag fix">fixed</span></summary><dl>
+    <dt>got in</dt><dd>83 corrections = 45 % of frames, each with a
+      1.4 s idle tail at home and no start motion.</dd>
+    <dt>found</dt><dd>Start test (wrist roll turn on the home frame):
+      32&deg; old, 3.7&deg; DAgger. Control run on B only, same recipe:
+      27&deg;. So the data, not the recipe.</dd>
+    <dt>fix</dt><dd>One skill at a time, trimmed fragments (pick +
+      place only), 7 % share: roll stays 29.4&deg;.</dd>
+  </dl></details>
+
+  <details><summary>fbs tilts to the new skill<span class="tag skip">
+    model rejected</span></summary><dl>
+    <dt>got in</dt><dd>Box data 33 % of frames, applied twice (fbs
+      from fb). Same task text for every skill.</dd>
+    <dt>found</dt><dd>Robot: stack grasp on normal boxes, 2/5 on a
+      normal heap, 42 % still. Offline roll 32 &rarr; 21 &rarr;
+      18&deg; showed it first.</dd>
+    <dt>fix</dt><dd>Use fb 10k. Rule: fine-tune once on a balanced
+      mix; per-skill task text + planner.</dd>
+  </dl></details>
+
+  <details><summary>Grasp finder misses big boxes<span class="tag fix">
+    fixed</span></summary><dl>
+    <dt>got in</dt><dd>Rule "gripper &lt; 30" never fires on a wide
+      box.</dd>
+    <dt>fix</dt><dd>Drop of 25 from the running max of the gripper
+      command.</dd>
+  </dl></details>
+
+  <details><summary>BSP start-test roll is NaN<span class="tag fix">
+    fixed</span></summary><dl>
+    <dt>got in</dt><dd>BSP plans cover 10-16 frames, NaN after.</dd>
+    <dt>fix</dt><dd>Roll between the first and the last finite
+      frame.</dd>
+  </dl></details>
+
+  <details><summary>Jerky runs with Chrome open<span class="tag fix">
+    procedure</span></summary><dl>
+    <dt>symptom</dt><dd>Loop down to 6 Hz, jerk 2.7x, 3.4-3.9
+      flips/s.</dd>
+    <dt>fix</dt><dd>No other programs during runs; start with the demo
+      wrist roll (a 180&deg; start is out of distribution).</dd>
+  </dl></details>
+
+  <details><summary>Planner: 17 s per decision<span class="tag fix">
+    fixed</span></summary><dl>
+    <dt>got in</dt><dd>SmolVLM2 image splitting makes many tiles per
+      image.</dd>
+    <dt>fix</dt><dd><code>do_image_splitting=False</code>: 1.5 s.</dd>
+  </dl></details>
+
+  <details><summary>Results log hides the blend of Diffusion runs<span
+    class="tag fix">fixed</span></summary><dl>
+    <dt>got in</dt><dd>The settings text added <code>blend</code> only
+      inside the SmolVLA branch.</dd>
+    <dt>found</dt><dd>A/B baseline jerked: rev/s 6.4 vs 1.2-1.9 on Nov
+      11. <code>diagnose_bsp.py</code> showed blend 0.2 in every old
+      debug log, but the CSV said nothing, so the rerun used 0.</dd>
+    <dt>fix</dt><dd>Log the blend for all models. Debug logs are the
+      source of truth for settings.</dd>
+  </dl></details>
+
+  <details><summary>SmolVLA TensorRT BF16 error 2.3&deg;<span
+    class="tag open">open</span></summary><dl>
+    <dt>result</dt><dd>258 &rarr; 226 ms, error 2.33&deg; &gt; limit.
+      VLM is already bf16 and not the slow part. Not used.</dd>
+  </dl></details>
+
+  <details><summary>SmolVLA follows a distractor on a trained spot<span
+    class="tag open">open</span></summary><dl>
+    <dt>result</dt><dd>Cube task: blue cube on a trained spot, SmolVLA
+      picked 0/6 vs 3/3 off-spot (Fisher p = 0.012). ACT and Diffusion
+      6/7. Lead: frozen pretrained vision encoder.</dd>
+  </dl></details>
+</div>
+
+<div class="panel" id="e-speed">
+  <h2>inference and control</h2>
+  <p class="muted"><code>bsp/bench_plan.py</code>: 5 fixed frames,
+  fixed noise, 40 repeats. Noise floor 0&deg;, &lt;1 % time. Gain vs
+  the reference row.</p>
+  <table>
+    <tr><th>Change</th><th>Plan p50/p95 ms</th><th>Err &deg;</th>
+        <th>Gain</th></tr>
+    <tr><td>ref Diffusion-BSP B</td><td>87.7 / 105.7</td><td>0</td>
+        <td>-</td></tr>
+    <tr><td>Diffusion TRT FP32</td><td>35.0 / 59.4</td><td>0.064</td>
+        <td>2.51x</td></tr>
+    <tr><td>Diffusion TRT FP16</td><td>13.1 / 13.2</td><td>0.149</td>
+        <td class="ok">6.69x</td></tr>
+    <tr><td>ref SmolVLA-BSP B</td><td>258.0 / 261.4</td><td>0</td>
+        <td>-</td></tr>
+    <tr><td>SmolVLA-BSP compile</td><td>148.0 / 163.2</td>
+        <td>0.141</td><td class="ok">1.74x</td></tr>
+    <tr><td>SmolVLA 5 flow steps, eager</td><td>137.3 / 150.6</td>
+        <td class="no">2.12*</td><td>1.88x</td></tr>
+    <tr><td>SmolVLA 5 flow steps, compile</td><td>123.1 / 134.0</td>
+        <td class="no">2.12*</td><td>not used</td></tr>
+    <tr><td>SmolVLA TRT BF16</td><td>225.8 / 234.6</td>
+        <td class="no">2.330</td><td>rejected</td></tr>
+  </table>
+  <p class="muted">* Against the 10-step output (mean 0.51&deg;). The
+  compiled 5-step plan is 0.20&deg; from 5-step eager.</p>
+
+  <h3>smolvla: where the plan time goes</h3>
+  <table>
+    <tr><th>Part (one plan, 3 cameras)</th><th>ms</th><th>Fix</th></tr>
+    <tr><td>vision encoder (SigLIP x3)</td><td>~73</td>
+        <td>none yet</td></tr>
+    <tr><td>VLM prefix pass (16 layers)</td><td>~21</td>
+        <td>bf16 (was fp32)</td></tr>
+    <tr><td>denoise: 10 steps x 16 tokens x 16 layers</td>
+        <td>10x13.2 &rarr; 10x3.4</td><td class="ok">compile + static
+        cache</td></tr>
+  </table>
+  <p class="muted">Each denoise step is ~1,200 small kernels. The CPU
+  launches them slower than the GPU runs them: launch-bound, not
+  compute-bound. <code>torch.compile</code> fuses them; step 13.2
+  &rarr; 3.4 ms. After that the fixed ~96 ms (vision + prefix) is the
+  floor, so 5 flow steps save only 25 ms for 2&deg; of drift.
+  TensorRT on vision + prefix: no gain, 2.3&deg; error.</p>
+  <table>
+    <tr><th>SmolVLA-BSP plan on the robot</th><th>ms</th></tr>
+    <tr><td>fp32 VLM (warm-start bug)</td><td>325</td></tr>
+    <tr><td>bf16 VLM</td><td>223</td></tr>
+    <tr><td>bf16 + <code>--compile default</code></td>
+        <td class="ok">138-152</td></tr>
+  </table>
+
+  <h3>robot a/b: trt + c++ (Nov 16)</h3>
+  <p class="muted">Diffusion-BSP B, 3-parcel heap, DDIM 10, 1.5x,
+  max step 6, blend 0.2. 3 episodes each (B: 4).</p>
+  <table>
+    <tr><th>Run</th><th>Plan ms</th><th>Hold %</th>
+        <th>Tick p99/max</th><th>Rev/s</th><th>Done s</th>
+        <th>OK</th></tr>
+    <tr><td>A python</td><td>87 / 95</td><td>0.1-1.2</td>
+        <td>21.4 / 24.1</td><td>0.8-2.3</td><td>23.7, 15.3</td>
+        <td>2/3</td></tr>
+    <tr><td>B trt fp16</td><td class="ok">18 / 36</td>
+        <td class="ok">0</td><td>22.4 / 24.5</td><td>1.2-2.6</td>
+        <td>19.2, 14.6</td><td>2/4</td></tr>
+    <tr><td>C trt + c++</td><td class="ok">19 / 34</td>
+        <td class="ok">0</td><td class="ok">20.1 / 20.4</td>
+        <td>1.4-2.5</td><td>15.4, 16.0</td><td>2/3</td></tr>
+  </table>
+  <p class="muted">Plans now arrive 0.1-0.4 s early, so the arm never
+  holds. Jerk and success did not change: the seam jump (8-13&deg;)
+  comes from plan-to-plan variance, not plan delay. Python ticks were
+  already on time on a quiet PC; C++ keeps them on time under
+  load.</p>
+  <table>
+    <tr><th>Control (50 Hz, fake arm, real cams + video)</th>
+        <th>Tick p95 / max ms</th></tr>
+    <tr><td>Python control</td><td>20.13 / 30.69</td></tr>
+    <tr><td>C++ control process</td><td>20.07 / 25.04</td></tr>
+    <tr><td>TRT FP16 + C++</td><td class="ok">20.07 / 20.17</td></tr>
+    <tr><td>Servo bus read (6 servos), Python &rarr; C++</td>
+        <td>max 5.46 &rarr; 1.41</td></tr>
+  </table>
+  <h3>BSP speed limit</h3>
+<pre><span class="c"># next segment must arrive before this one ends</span>
+margin = (1 - f) * S / (30 * v) - L
+v_max  = (1 - f) * S / (30 * L)
+<span class="c"># SmolVLA-BSP: L=0.22-0.3 s, S=33-40 -> 1.8-3x</span></pre>
+  <table>
+    <tr><th>Speed</th><th>Rev/s old</th><th>Rev/s new</th>
+        <th>Success (cube)</th></tr>
+    <tr><td>1x</td><td>4.6</td><td class="ok">0.5</td><td>3/3</td></tr>
+    <tr><td>1.5x</td><td>8.4</td><td class="ok">1.2</td>
+        <td>3/5 (1.25-1.75x)</td></tr>
+    <tr><td>2x</td><td>8.3</td><td>2.5</td><td>2/4</td></tr>
+    <tr><td>2.5x</td><td>19.1</td><td>6.8</td><td>3/4</td></tr>
+  </table>
+</div>
+
+<div class="panel" id="e-dagger">
+  <h2>dagger rounds</h2>
+  <p class="muted">Recipe: lr 1e-4, warm-up 500, batch 12, VLM frozen.
+  Start test gate: roll &ge; 15&deg; and B fit &le; ref + 1&deg;.</p>
+  <table>
+    <tr><th>Model</th><th>Roll &deg;</th><th>Skill fit &deg;</th>
+        <th>B fit &deg;</th><th>Robot</th></tr>
+    <tr><td>smolvla_b (ref)</td><td>32.0</td><td>6.5 box / 16.3 far</td>
+        <td>1.2</td><td>-</td></tr>
+    <tr><td>round 1 dg (tails cut)</td><td class="no">3.7</td>
+        <td>-</td><td>-</td><td class="no">stays home</td></tr>
+    <tr><td>b_fe 5k</td><td>29.4</td><td>2.4</td><td>1.6</td>
+        <td class="ok">far edge works</td></tr>
+    <tr><td>b_box 5k</td><td>19.8</td><td>3.5</td><td>1.7</td>
+        <td>box on box fails</td></tr>
+    <tr><td>b_fb 10k</td><td>21.1</td><td>1.4</td><td>1.4</td>
+        <td class="ok">both skills</td></tr>
+    <tr><td>b_fbs 10k</td><td>18.3</td><td>1.8 stack</td><td>1.7</td>
+        <td class="no">tilted</td></tr>
+  </table>
+  <div class="row">
+    <figure class="fig"><video src="videos/fbs_box_on_box.mp4"
+      poster="videos/fbs_box_on_box.jpg" autoplay muted loop
+      playsinline></video>
+      <figcaption>fbs 10k, <code>fbs_hard</code> ep 1: top box only,
+      22 s. 3/5 clean (all middle stacks).</figcaption></figure>
+    <figure class="fig"><video src="videos/demo_box_stack.mp4"
+      poster="videos/demo_box_stack.jpg" autoplay muted loop
+      playsinline></video>
+      <figcaption><code>parcel-skill-boxstack-cut</code> ep 1: one of
+      the 20 box-stack demos (dataset B had about 5).</figcaption></figure>
+  </div>
+</div>
+
+<div class="panel" id="e-skills">
+  <h2>skill texts (language test)</h2>
+  <p class="muted">Does SmolVLA read the task text? Relabel the merged
+  set with one text per episode, fine-tune from smolvla_b (80k), lr
+  1e-4, 10k steps, VLM frozen. Offline test (<code>lang_test.py</code>):
+  held-out frames, each text with the same noise. Wins = correct text
+  has the lowest error vs the human action. Shift = change of the
+  prediction with another text; noise = same text, other seed (deg, 5
+  joints, next 1 s).</p>
+  <table>
+    <tr><th>Run</th><th>Texts</th><th>Bag wins</th><th>Box wins</th>
+        <th>Box/bag shift vs noise</th><th>Verdict</th></tr>
+    <tr><td><code>b_all</code> (control)</td><td>1 for all</td>
+        <td colspan="2">8-30 % (all groups)</td>
+        <td>0.3-1.4 vs 1.6-2.9</td>
+        <td class="no">ignores text</td></tr>
+    <tr><td><code>b_sk3</code></td><td>3, differ in 1 token of 11
+        ("box"/"bag")</td><td>62 %</td><td>57 %</td>
+        <td>0.40 vs 1.62</td><td class="no">ignores box/bag</td></tr>
+    <tr><td><code>b_sk3d</code></td><td>3, no shared token</td>
+        <td>85 %</td><td>75 %</td><td class="ok">3.41 vs 1.63</td>
+        <td class="ok">reads text</td></tr>
+    <tr><td><code>b_sk5d</code></td><td>5, no shared token (+ far
+        edge, on table)</td><td class="ok">89 %</td><td>74 %</td>
+        <td class="ok">3.49 vs 1.61</td><td>old 3 kept, new 2 not
+        learned</td></tr>
+  </table>
+  <pre><span class="c"># sk3d / sk5d texts (no shared token)</span>
+box  "grasp rigid box with wide grip and set it at flip zone"
+bag  "pinch soft bag by its edge then drop onto table"
+top  "lift upper carton off stacked pile"
+<span class="c"># sk5d only: far edge (13 eps), on table (16 eps)</span>
+far  "reach far rim, pull parcel closer"
+push "sweep lone item beyond wooden desk border"</pre>
+  <p>sk5d new skills: far edge 34 % wins (chance 20 %), shift at noise;
+  on table 0 %, ~10&deg; error for every text. 13-16 eps are too few
+  (rounds 2-3: ~20+). Box on a box: the image decides offline (top
+  text 4.13 vs 3.98-4.27&deg;), but the text works on the robot.</p>
+  <h3>robot, operator as the planner (sk3d, keys 1/2/3 live)</h3>
+  <table>
+    <tr><th>Test</th><th>Scene</th><th>Result</th></tr>
+    <tr><td>A, 8 eps</td><td>box + bag side by side, each text</td>
+        <td>Target = parcel nearest the flip zone (image). Text = grasp
+        style. Text vs target conflict &rarr; hesitation.</td></tr>
+    <tr><td>C, ep 0</td><td>box on a box + bag; key 3, then key 2</td>
+        <td class="ok">top box off the stack, then the bag</td></tr>
+  </table>
+  <p>Learned split: target from the image, skill from the text. To pick
+  the target with text, the data needs one scene with two texts and two
+  targets.</p>
+  <div class="row">
+    <figure class="fig"><video src="videos/skill_switch_top_bag.mp4"
+      poster="videos/skill_switch_top_bag.jpg" autoplay muted loop
+      playsinline></video>
+      <figcaption><code>sk3d_skilltext_c</code> ep 0, 0-46 s, 2x: key 3
+      (top box), key 2 (bag).</figcaption></figure>
+    <figure class="fig"><video src="videos/grasp_gap.mp4"
+      poster="videos/grasp_gap.jpg" autoplay muted loop
+      playsinline></video>
+      <figcaption><code>sk3d_planner_drive</code> ep 0, 6-14 s: grasp in
+      the gap between black box and black bag.</figcaption></figure>
+  </div>
+</div>
+
+<div class="panel" id="e-planner">
+  <h2>vlm skill planner (offline + live)</h2>
+  <p class="muted">SmolVLM2-2.2B-Instruct. P(yes) = sigmoid(lse(Yes) -
+  lse(No)) from one forward pass. Priority in code: stack &gt; far edge
+  &gt; box &gt; bag; empty &rarr; home. 120 labelled home frames: 71 far,
+  25 stack, 19 box, 5 empty.</p>
+  <table>
+    <tr><th>Method</th><th>Stack AUC</th><th>Stacks found</th>
+        <th>Far AUC</th><th>Skill acc</th><th>Time</th></tr>
+    <tr><td>Zero-shot, top + side</td><td>0.74</td><td>1/25</td>
+        <td>0.82</td><td>69 %</td><td>1.5 s</td></tr>
+    <tr><td>Zero-shot + wrist, tiles</td><td>0.90</td><td>60 %</td>
+        <td>-</td><td>-</td><td>4.4 s</td></tr>
+    <tr><td>Linear probe (last token), 3 cams</td><td class="ok">0.96
+        </td><td>23/25</td><td>0.98</td><td class="ok">81 %</td>
+        <td>~2 s</td></tr>
+  </table>
+  <p>Probe: logistic regression per question, 5-fold CV grouped by
+  episode. Still 12 false "stack" calls (8 far, 4 box). One labeller;
+  stack frames from one day.</p>
+  <h3>fit next to SmolVLA on 6 GB</h3>
+  <p>2.2B needs ~4.5 GB: no room next to SmolVLA. SmolVLM2-500M (~1
+  GB, 1.9 GB peak with SmolVLA): bag AUC 0.99, but stack AUC 0.84 with
+  39 false stacks / 100 (2.2B: 12).</p>
+  <table>
+    <tr><th>Next-parcel kind</th><th>Model</th><th>Zero-shot</th>
+        <th>Probe</th><th>Time</th></tr>
+    <tr><td>home, 3 cams</td><td>500M</td><td>51 %</td><td>74 %</td>
+        <td>0.34 s</td></tr>
+    <tr><td>wrist, 1 s before grasp</td><td>500M</td><td>55 %</td>
+        <td class="ok">99 %</td><td>0.09 s</td></tr>
+  </table>
+  <h3>live on the robot (<code>live_planner.py</code>)</h3>
+  <p>Thread next to the policy: plan at home (probe or top-view colour
+  regions, <code>topview.py</code>), verify with the wrist probe during
+  the approach. Drive runs: the home probe said "bag" in 27/31 home
+  visits (does not transfer to new heaps). Top-view regions were right
+  on single parcels, but a black box touching a black bag is one
+  region. A watershed split broke bubble bags into pieces, so it is
+  not used. The operator still set the skill by key.</p>
+  <figure class="fig"><img src="assets/skill_text_findings.jpg"
+    alt="Top-view regions merge touching parcels; grasp in the gap;
+    top-box skill">
+    <figcaption>(a) top-view regions: black box + black bag = 1. (b)
+    policy closes in the gap. (c) key 3: top box off the
+    stack.</figcaption></figure>
+</div>
+
+<div class="panel" id="e-open">
+  <h2>open issues (not addressed on purpose)</h2>
+  <table>
+    <tr><th>Issue</th><th>Evidence</th><th>Why not now</th></tr>
+    <tr><td>Black box vs black bag</td><td>All 3 models used the bag push
+        on the black box (8-heap). Touching: grasp in the gap; top-view
+        regions merge them</td><td>Same colour + small top image.
+        Cheaper fix: infeed rule, or a parcel detector for the
+        planner</td></tr>
+    <tr><td>Parcels on the table</td><td>SmolVLA-BSP moves dragged
+        parcels off the tray; a dropped box was ignored</td><td>Not in
+        demos. Cheaper fix: tray walls</td></tr>
+    <tr><td>Far edge</td><td>Hover at shoulder lift 45-49&deg;; demos
+        reach 70&deg;; 14/99 eps that far</td><td>Data, not joint
+        limit. Cheaper fix: smaller tray</td></tr>
+    <tr><td>Stress test</td><td>One heap per model so far</td>
+        <td>Needs operator time</td></tr>
+  </table>
+  <div class="row3">
+    <figure class="fig"><video src="videos/heap8_black_box_push.mp4"
+      poster="videos/heap8_black_box_push.jpg" autoplay muted loop
+      playsinline></video>
+      <figcaption>SmolVLA RTC, 8-heap, 203-225 s: bag push on
+      the black box.</figcaption></figure>
+    <figure class="fig"><video src="videos/heap8_scatter.mp4"
+      poster="videos/heap8_scatter.jpg" autoplay muted loop
+      playsinline></video>
+      <figcaption>SmolVLA-BSP, 8-heap ep 1: one move scatters the
+      tray. 2x.</figcaption></figure>
+    <figure class="fig"><video src="videos/heap8_far_edge.mp4"
+      poster="videos/heap8_far_edge.jpg" autoplay muted loop
+      playsinline></video>
+      <figcaption>Diffusion-BSP, 8-heap ep 3: far-edge hover,
+      hand assist at 23-29 s. 2x.</figcaption></figure>
+  </div>
+</div>
+
+<div class="panel" id="e-config">
+  <h2>config</h2>
+<pre><span class="c"># Diffusion (B)</span>
+unet=(256,512,1024) horizon=64 n_obs=2 img=240x424 amp=1
+batch=16 steps=80k  infer: DDIM 10  (BSP: 5)
+<span class="c"># SmolVLA (B)</span>
+init=lerobot/smolvla_base train_expert_only=1 freeze_vision=1
+batch=12 steps=80k decay=80000 chunk=50 flow_steps=10
+<span class="c"># BSP executor</span>
+segment=16 knots x 6 joints  control=50Hz  replan at 50 %
+--speed 1.5 --blend 0.2 --max-step 6 --ddim-steps 5
+--trt fp16 --control cpp   <span class="c"># Diffusion-BSP, new path</span>
+<span class="c"># SmolVLA RTC (default)</span>
+--inference.type=rtc --inference.rtc.execution_horizon=10
+--inference.queue_threshold=30
+FREEZE=1 RTC_EXACT_DELAY=1 COMPILE=default SMOOTH=7
+<span class="c"># skill fine-tune</span>
+lr=1e-4 warmup=500 batch=12  fb: B + far + box x3, 15k (pick 10k)
+<span class="c"># skill texts (one text per episode, from smolvla b)</span>
+sk3d: 160 eps, 10k   sk5d: 189 eps, 10k   held out: 12 / 18 eps
+LIVE_SKILL=1 SKILL_SPLIT=skill5d_split.json  <span class="c"># keys 1-5</span></pre>
+</div>
+
+<footer>zt@so101 &middot; 2026 &middot;
+  <a href="https://github.com/">github</a> &middot;
+  <a href="https://huggingface.co/Low101">huggingface</a> &middot;
+  <a href="#" data-go="biz">business version</a>
+</footer>
+</div></main>
+
+<script>
+(function () {
+  const body = document.body;
+  const fx = document.getElementById("fx");
+  let raf = 0;
+
+  function setView(v) {
+    body.dataset.view = v;
+    document.querySelectorAll(".switch button").forEach(function (b) {
+      b.setAttribute("aria-pressed", String(b.dataset.v === v));
+    });
+    try { localStorage.setItem("view", v); } catch (e) {}
+    history.replaceState(null, "", "#" + v);
+    window.scrollTo(0, 0);
+    if (v === "eng") start(); else stop();
+  }
+  document.querySelectorAll("[data-v]").forEach(function (b) {
+    b.addEventListener("click", function () { setView(b.dataset.v); });
+  });
+  document.querySelectorAll("[data-go]").forEach(function (a) {
+    a.addEventListener("click", function (e) {
+      e.preventDefault(); setView(a.dataset.go);
+    });
+  });
+
+  // ---- rain in the side margins only ----
+  const ctx = fx.getContext("2d");
+  let W = 0, H = 0, zones = [], drops = [], splashes = [];
+
+  function marginZones() {
+    const r = document.querySelector("#eng .wrap").getBoundingClientRect();
+    const z = [];
+    if (r.left - 16 > 40) z.push([8, r.left - 16]);
+    if (W - r.right - 16 > 40) z.push([r.right + 16, W - 8]);
+    return z;
+  }
+
+  function newDrop(first) {
+    const z = zones[(Math.random() * zones.length) | 0];
+    return { x: z[0] + Math.random() * (z[1] - z[0]),
+             y: first ? Math.random() * H : -30 - Math.random() * 120,
+             len: 10 + Math.random() * 14, v: 4 + Math.random() * 4 };
+  }
+
+  function resize() {
+    const dpr = window.devicePixelRatio || 1;
+    W = innerWidth; H = innerHeight;
+    fx.width = W * dpr; fx.height = H * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    zones = marginZones();
+    const room = zones.reduce(function (s, z) {
+      return s + z[1] - z[0];
+    }, 0);
+    drops = []; splashes = [];
+    for (let i = 0; i < Math.floor(room / 22); i++) {
+      drops.push(newDrop(true));
+    }
+  }
+
+  function drawRain() {
+    const ground = H - 6;
+    ctx.strokeStyle = "rgba(13,148,136,.45)";
+    ctx.lineWidth = 1.5; ctx.lineCap = "round";
+    ctx.beginPath();
+    drops.forEach(function (d) {
+      d.y += d.v;
+      if (d.y + d.len > ground) {
+        splashes.push({ x: d.x, r: 1, a: 0.5 });
+        Object.assign(d, newDrop(false));
+      }
+      ctx.moveTo(d.x, d.y); ctx.lineTo(d.x - 1.5, d.y + d.len);
+    });
+    ctx.stroke();
+    ctx.lineWidth = 1;
+    splashes = splashes.filter(function (s) {
+      s.r += 0.6; s.a -= 0.025;
+      if (s.a <= 0) return false;
+      ctx.strokeStyle = "rgba(13,148,136," + s.a + ")";
+      ctx.beginPath();
+      ctx.ellipse(s.x, ground, s.r, s.r * 0.35, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      return true;
+    });
+  }
+
+  // ---- pixel cast (sprites face right) ----
+  const ROBOT = [
+    [".....o......", ".....k......", "..kkkkkkk...", "..kwkkkwk...",
+     "..kkkkkkk...", "..kkmmmkk...", "...kkkkk....", ".kkkkkkkkk..",
+     ".k.kkkkk.k..", "...kkkkk....", "...k...k....", "..kk...kk..."],
+    [".....o......", ".....k......", "..kkkkkkk...", "..kwkkkwk...",
+     "..kkkkkkk...", "..kkmmmkk...", "...kkkkk....", ".kkkkkkkkk..",
+     ".k.kkkkk.k..", "...kkkkk....", "....k.k.....", "...kk.kk...."]
+  ];
+  const BOX = ["bbbb", "bddb", "bbbb"];
+  const PAL = {
+    k: "#0f766e", w: "#ecfdf5", o: "#fb923c", m: "#5eead4",
+    b: "#f59e0b", d: "#b45309"
+  };
+  const CAST = [
+    { frames: ROBOT, px: 5, speed: 0.9, box: true },
+    { frames: ROBOT, px: 5, speed: 0.7, box: true },
+    { frames: ROBOT, px: 4, speed: 1.2 }
+  ];
+  let actors = [];
+
+  function makeActors() {
+    actors = CAST.map(function (c, i) {
+      const a = Object.assign({}, c, {
+        zone: i % 2, dir: i % 2 ? -1 : 1, t: (Math.random() * 400) | 0
+      });
+      a.w = a.frames[0][0].length * a.px;
+      a.x = null;
+      return a;
+    });
+  }
+
+  function zoneOf(a) {
+    const z = zones[a.zone % zones.length];
+    return z && z[1] - z[0] > a.w + 8 ? z : null;
+  }
+
+  function drawSprite(rows, x, y, px, flip) {
+    rows.forEach(function (r, j) {
+      for (let i = 0; i < r.length; i++) {
+        const c = r[flip ? r.length - 1 - i : i];
+        if (c === ".") continue;
+        ctx.fillStyle = PAL[c];
+        ctx.fillRect(Math.round(x + i * px), Math.round(y + j * px),
+                     px, px);
+      }
+    });
+  }
+
+  function drawCast() {
+    actors.forEach(function (a) {
+      const z = zoneOf(a);
+      if (!z) return;
+      a.t += 1;
+      const w = a.w, lo = z[0], hi = z[1] - w;
+      if (a.x === null) a.x = lo + Math.random() * (hi - lo);
+      a.x += a.dir * a.speed;
+      if (a.x > hi) { a.x = hi; a.dir = -1; }
+      if (a.x < lo) { a.x = lo; a.dir = 1; }
+      const rows = a.frames[0].length;
+      const step = ((a.t / 10) | 0) % 2;
+      const y = H - rows * a.px - 4 - (step ? a.px / 2 : 0);
+      drawSprite(a.frames[step], a.x, y, a.px, a.dir < 0);
+      if (a.box) {
+        const bx = a.dir > 0 ? a.x + w - a.px : a.x - 3 * a.px;
+        drawSprite(BOX, bx, y + 6 * a.px, a.px, false);
+      }
+    });
+  }
+
+  function frame() {
+    raf = requestAnimationFrame(frame);
+    ctx.clearRect(0, 0, W, H);
+    drawRain();
+    drawCast();
+  }
+
+  function start() {
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    resize(); makeActors();
+    if (!raf) raf = requestAnimationFrame(frame);
+  }
+  function stop() { cancelAnimationFrame(raf); raf = 0; }
+  addEventListener("resize", function () {
+    if (body.dataset.view === "eng") resize();
+  });
+
+  // Auto play/pause on scroll, unless the user paused it or it is
+  // fullscreen.
+  const io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) {
+      const el = e.target;
+      if (document.fullscreenElement === el) return;
+      if (e.isIntersecting) {
+        if (!el.dataset.userPaused) el.play().catch(function () {});
+      } else if (!el.paused) {
+        el.dataset.autoPaused = "1";
+        el.pause();
+      }
+    });
+  }, { threshold: 0.25 });
+  document.querySelectorAll("video").forEach(function (el) {
+    el.removeAttribute("autoplay");
+    el.preload = "metadata";
+    el.controls = true;
+    el.addEventListener("pause", function () {
+      if (el.dataset.autoPaused) delete el.dataset.autoPaused;
+      else el.dataset.userPaused = "1";
+    });
+    el.addEventListener("play", function () {
+      delete el.dataset.userPaused;
+    });
+    el.addEventListener("dblclick", function () {
+      if (document.fullscreenElement) document.exitFullscreen();
+      else if (el.requestFullscreen) el.requestFullscreen();
+    });
+    io.observe(el);
+  });
+
+  let v = location.hash.slice(1);
+  if (v !== "biz" && v !== "eng") {
+    try { v = localStorage.getItem("view") || "biz"; } catch (e) {
+      v = "biz";
+    }
+  }
+  setView(v === "eng" ? "eng" : "biz");
+})();
+</script>
+</body>
+</html>

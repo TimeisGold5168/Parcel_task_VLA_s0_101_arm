@@ -22,7 +22,7 @@ SmolVLA, and the B-spline (BSP) version of each.
    faster and smoother.
 3. Parcel task: ArUco labels, a 3-camera setup and a 100-episode
    dataset. Diffusion, Diffusion-BSP, SmolVLA and SmolVLA-BSP.
-4. Next: a grasp-based pull skill, then DAgger.
+4. Next: a pick-and-place skill, then DAgger.
 
 ## Models (`models/`, Git LFS)
 

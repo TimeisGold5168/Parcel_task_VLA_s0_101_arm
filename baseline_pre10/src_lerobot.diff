@@ -1,0 +1,15 @@
+diff --git a/src/lerobot/rollout/strategies/episodic.py b/src/lerobot/rollout/strategies/episodic.py
+index e4eb9a88..77f7f9a6 100644
+--- a/src/lerobot/rollout/strategies/episodic.py
++++ b/src/lerobot/rollout/strategies/episodic.py
+@@ -191,6 +191,10 @@ class EpisodicStrategy(RolloutStrategy):
+ 
+                         continue
+ 
++                    if not dataset.has_pending_frames():
++                        logger.warning("Episode ended with no frames; not saving it")
++                        continue
++
+                     dataset.save_episode()
+                     recorded_episodes += 1
+             finally:

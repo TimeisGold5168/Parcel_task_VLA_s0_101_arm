@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Parcel Sorting Cell with a Low-Cost Arm | Zhen Ting Lee</title>
+<meta name="description" content="Building and deploying a parcel
+sorting cell with an SO-101 arm: cell design, policy choice, cycle
+time, safety and maintenance.">
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --line: #30363d;
+    --text: #e6edf3; --muted: #8b949e; --accent: #f0a500;
+    --good: #3fb950; --bad: #f85149; --blue: #58a6ff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.65 -apple-system, "Segoe UI", Inter, Roboto, sans-serif;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 0 24px; }
+  nav {
+    position: sticky; top: 0; z-index: 9; background: #0d1117e6;
+    backdrop-filter: blur(6px); border-bottom: 1px solid var(--line);
+  }
+  nav .wrap { display: flex; gap: 18px; height: 52px;
+              align-items: center; font-size: 14px; }
+  nav .brand { font-weight: 700; color: var(--text); margin-right: auto; }
+  nav a { color: var(--muted); }
+  header { padding: 64px 0 32px; }
+  h1 { font-size: 40px; line-height: 1.15; margin: 0 0 16px; }
+  .lead { font-size: 19px; color: var(--muted); max-width: 780px; }
+  .tags { display: flex; flex-wrap: wrap; gap: 8px; margin: 20px 0; }
+  .tag {
+    font-size: 13px; padding: 3px 10px; border: 1px solid var(--line);
+    border-radius: 999px; color: var(--muted);
+  }
+  .req {
+    font-size: 12px; padding: 2px 8px; border-radius: 999px;
+    background: #f0a50022; color: var(--accent); font-weight: 600;
+    margin-right: 4px; white-space: nowrap;
+  }
+  .btns { display: flex; gap: 12px; margin-top: 8px; }
+  .btn {
+    padding: 9px 16px; border-radius: 8px; font-weight: 600;
+    border: 1px solid var(--line); color: var(--text); font-size: 14px;
+  }
+  .btn.primary { background: var(--accent); color: #111;
+                 border-color: var(--accent); }
+  .stats {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
+    margin: 32px 0 8px;
+  }
+  .card {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 12px; padding: 18px;
+  }
+  .stat b { display: block; font-size: 30px; color: var(--accent); }
+  .stat span { font-size: 13px; color: var(--muted); }
+  section { padding: 40px 0; border-top: 1px solid var(--line); }
+  h2 { font-size: 26px; margin: 0 0 6px; }
+  h2 small { display: block; font-size: 15px; font-weight: 400;
+             color: var(--muted); margin-top: 4px; }
+  h3 { font-size: 18px; margin: 28px 0 8px; }
+  p, li { color: #c9d1d9; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr);
+           gap: 12px; margin-top: 20px; }
+  .grid3 .card b { display: block; margin-bottom: 4px; }
+  .grid3 .card p { margin: 0; font-size: 14px; color: var(--muted); }
+  .videos { display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+            margin-top: 20px; }
+  .video figure { margin: 0; }
+  video, .ph {
+    width: 100%; aspect-ratio: 16/9; border-radius: 10px;
+    background: #000; border: 1px solid var(--line);
+  }
+  .ph { display: grid; place-items: center; color: var(--muted);
+        font-size: 14px; }
+  figure { margin: 0; }
+  .tall { display: flex; gap: 24px; justify-content: center;
+          margin: 8px 0 28px; }
+  .tall figure { width: 280px; }
+  .tall video, .tall img {
+    width: 100%; aspect-ratio: 9/16; object-fit: cover; height: auto;
+    border-radius: 10px; border: 1px solid var(--line); display: block;
+  }
+  figcaption { font-size: 14px; color: var(--muted); margin-top: 8px; }
+  figcaption b { color: var(--text); }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 24px;
+         align-items: start; }
+  .fig img { width: 100%; border-radius: 10px;
+             border: 1px solid var(--line); }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0;
+          font-size: 14px; }
+  th, td { text-align: left; padding: 9px 10px; vertical-align: top;
+           border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 600; }
+  td.good { color: var(--good); font-weight: 600; }
+  td.bad { color: var(--bad); }
+  td.impact { color: var(--text); }
+  .callout {
+    background: var(--panel); border-left: 3px solid var(--accent);
+    border-radius: 6px; padding: 14px 18px; margin: 20px 0;
+  }
+  .callout p { margin: 0; }
+  .callout b { color: var(--accent); }
+  .lessons { display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+             padding: 0; list-style: none; }
+  .lessons li {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 10px; padding: 14px 16px; margin: 0;
+  }
+  .lessons li b { color: var(--text); display: block; }
+  code { background: #ffffff14; padding: 1px 6px; border-radius: 4px;
+         font-size: 13px; }
+  ol.refs { font-size: 14px; color: var(--muted); }
+  footer { padding: 32px 0 48px; color: var(--muted); font-size: 14px;
+           border-top: 1px solid var(--line); }
+  @media (max-width: 760px) {
+    .stats { grid-template-columns: 1fr 1fr; }
+    .videos, .row, .lessons, .grid3 { grid-template-columns: 1fr; }
+    h1 { font-size: 30px; }
+  }
+</style>
+</head>
+<body>
+
+<nav><div class="wrap">
+  <span class="brand">Zhen Ting Lee</span>
+  <a href="#requirements">Requirements</a>
+  <a href="#cell">Cell design</a>
+  <a href="#policy">Policy</a>
+  <a href="#speed">Cycle time</a>
+  <a href="#skills">New skills</a>
+  <a href="#lessons">Lessons</a>
+</div></nav>
+
+<div class="wrap">
+
+<header>
+  <h1>A Parcel Sorting Cell with a Low-Cost Robot Arm</h1>
+  <p class="lead">
+    A robot cell that takes parcels from a heap, turns each one label
+    down and pushes it to the next station. I built it as an engineer
+    who wants to deploy it, not as a researcher: every choice in the
+    hardware, the data and the AI model is measured against cycle
+    time, reliability, damage to parcels and equipment, and cost.
+  </p>
+  <div class="tags">
+    <span class="tag">SO-101 arm</span><span class="tag">LeRobot</span>
+    <span class="tag">Imitation learning</span>
+    <span class="tag">Diffusion Policy</span><span class="tag">SmolVLA</span>
+    <span class="tag">B-spline motion</span><span class="tag">TensorRT</span>
+    <span class="tag">C++ control</span>
+    <span class="tag">6 GB laptop GPU</span>
+  </div>
+  <div class="btns">
+    <a class="btn primary" href="https://github.com/">Code on GitHub</a>
+    <a class="btn" href="https://huggingface.co/Low101">Models</a>
+    <a class="btn" href="https://github.com/">Full lab notes</a>
+  </div>
+
+  <div class="stats">
+    <div class="card stat"><b>17 s</b>
+      <span>per parcel on a 5-parcel heap, against about 25 s for a
+      human teleoperator</span></div>
+    <div class="card stat"><b>5/5</b>
+      <span>parcels sorted, labels correct, no human help
+      (Diffusion-BSP)</span></div>
+    <div class="card stat"><b>6.7&times;</b>
+      <span>less planning time with TensorRT FP16: room for a smaller,
+      cheaper GPU</span></div>
+    <div class="card stat"><b>1.5&times;</b>
+      <span>the safe speed limit we set; faster runs cut cycle time
+      but fail more</span></div>
+  </div>
+</header>
+
+<section id="demo">
+  <h2>Demo<small>Real robot, no human help unless stated.</small></h2>
+  <div class="videos">
+    <figure class="video">
+      <div class="ph">video: heap of 3, Diffusion-BSP</div>
+      <figcaption><b>Heap clear.</b> White bag, black bag and a
+      labelled box, sorted one by one.</figcaption>
+    </figure>
+    <figure class="video">
+      <div class="ph">video: label flip</div>
+      <figcaption><b>Label flip.</b> The arm turns the box label down,
+      then pushes it off the table.</figcaption>
+    </figure>
+    <figure class="video">
+      <div class="ph">video: box on a box</div>
+      <figcaption><b>New case.</b> Take only the top box of a stack,
+      added with 20 demos and 30 corrections.</figcaption>
+    </figure>
+    <figure class="video">
+      <div class="ph">video: 1x vs 1.5x</div>
+      <figcaption><b>Cycle time.</b> The same model at 1&times; and
+      1.5&times; speed.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section id="requirements">
+  <h2>What a deployable cell needs
+    <small>I wrote these first. Every finding below is tagged with
+    the requirements it affects.</small></h2>
+  <div class="grid3">
+    <div class="card"><b><span class="req">Reliable</span></b>
+      <p>Clears a full heap with no operator help. Every help call is
+      labour cost.</p></div>
+    <div class="card"><b><span class="req">Cycle time</span></b>
+      <p>Seconds per parcel sets the throughput of the line.</p></div>
+    <div class="card"><b><span class="req">Gentle</span></b>
+      <p>No scratched or dropped parcels, no hits on the table,
+      conveyor or other parcels.</p></div>
+    <div class="card"><b><span class="req">Simple</span></b>
+      <p>Few parts and one model where possible. Easy to set up and
+      to fix on site.</p></div>
+    <div class="card"><b><span class="req">Efficient</span></b>
+      <p>Runs on low-cost compute; trains in hours on one small
+      GPU.</p></div>
+    <div class="card"><b><span class="req">Maintainable</span></b>
+      <p>A new parcel type or case can be added without breaking the
+      old ones.</p></div>
+  </div>
+</section>
+
+<section id="cell">
+  <h2>Cell design comes first
+    <small>Hardware and automation planning removed problems that no
+    model could fix.</small></h2>
+  <table>
+    <tr><th style="width:24%">Decision</th><th>Why</th>
+        <th style="width:30%">Effect on the cell</th></tr>
+    <tr><td><b>Wrist camera one joint back</b><br>
+        <span class="req">Gentle</span><span class="req">Reliable</span>
+        </td>
+        <td>The label flip needs a 180&deg; wrist roll. The camera
+        mount turned with the roll and hit the table.</td>
+        <td class="impact">Full flip with no table contact. The camera
+        still sees the gripper.</td></tr>
+    <tr><td><b>Robot base height</b><br>
+        <span class="req">Reliable</span><span class="req">Cycle time</span>
+        </td>
+        <td>I changed the height of the base against the tray, so the
+        gripper meets the parcels at an easier angle.</td>
+        <td class="impact">Easier grasps for the operator and the
+        model.</td></tr>
+    <tr><td><b>Grasp, not push</b><br>
+        <span class="req">Cycle time</span><span class="req">Gentle</span>
+        </td>
+        <td>Pushing parcels out of the heap was slow (25-35 s per pull)
+        and different every time. A side-wall grasp, the same as the
+        flip, carries the parcel in 2-2.5 s.</td>
+        <td class="impact">One repeatable motion for all parcel kinds,
+        less sliding of parcels on the surface.</td></tr>
+    <tr><td><b>Stay in the strong part of the reach</b><br>
+        <span class="req">Reliable</span>
+        </td>
+        <td>At the far edge of the tray, the model found the parcel but
+        did not reach the last few cm. Only 14 of 99 demos grasp that
+        far.</td>
+        <td class="impact">Size the infeed to the reliable reach, or
+        pay for extra demos there.</td></tr>
+    <tr><td><b>Top camera at 848&times;480</b><br>
+        <span class="req">Reliable</span>
+        </td>
+        <td>At 1280&times;720 the encoder dropped frames. 848&times;480
+        has the same field of view with less than half the pixels.</td>
+        <td class="impact">Clean training data and no lost frames at
+        run time.</td></tr>
+    <tr><td><b>ArUco shipping labels</b><br>
+        <span class="req">Maintainable</span>
+        </td>
+        <td>Each parcel has a label with a unique marker, so a script
+        can score label-down results.</td>
+        <td class="impact">A repeatable benchmark that does not depend
+        on a person.</td></tr>
+  </table>
+  <div class="tall">
+    <figure>
+      <video src="videos/wrist_camera_roll.mp4"
+        poster="videos/wrist_camera_roll.jpg"
+        autoplay muted loop playsinline></video>
+      <figcaption><b>Wrist camera one joint back.</b> The gripper rolls
+      180&deg;; the camera and its mount stay still.</figcaption>
+    </figure>
+    <figure>
+      <img src="assets/robot_base_height.jpg"
+        alt="SO-101 arm clamped to a desk at the chosen base height">
+      <figcaption><b>Base height.</b> The arm is clamped at a height
+      that gives an easier grasp angle on the parcels.</figcaption>
+    </figure>
+  </div>
+  <figure class="fig"><img src="assets/setup_cameras.jpg"
+    alt="Top, side and wrist camera views of a 5-parcel heap">
+    <figcaption>Top, side and wrist cameras at the start of a
+    5-parcel heap.</figcaption></figure>
+</section>
+
+<section id="policy">
+  <h2>Choosing the model on the robot
+    <small>Two model types, trained from 99 demos (73k frames) on one
+    6 GB laptop GPU.</small></h2>
+  <table>
+    <tr><th>Model</th><th>Size</th><th>5-parcel heap</th>
+        <th>Run time</th><th>What went wrong</th></tr>
+    <tr><td>Diffusion-BSP</td><td>89M, from scratch</td>
+        <td class="good">5/5</td><td>86 s</td><td>-</td></tr>
+    <tr><td>SmolVLA-BSP</td><td>450M, pretrained</td><td>4/5</td>
+        <td>219 s</td><td>17-27 s waits at home; no grasp on small
+        boxes</td></tr>
+    <tr><td>SmolVLA (RTC)</td><td>450M, pretrained</td><td>3/5</td>
+        <td>231 s (limit)</td><td>75 s hover before a grasp</td></tr>
+  </table>
+  <div class="callout"><p><b>Impact:</b> the smaller model trained
+  from scratch won on the robot, and it is cheaper to train (9 h
+  against 27 h) and to run. The offline test ranked the models the
+  other way, so I use offline tests to find bugs and robot runs to
+  pick models. One heap per model: this is an indication, not a
+  controlled test.</p></div>
+</section>
+
+<section id="speed">
+  <h2>Cycle time against safety
+    <span class="req">Cycle time</span><span class="req">Gentle</span>
+    <small>Faster is better for throughput, until the arm starts to
+    fail or hit things.</small></h2>
+
+  <h3>Speed as a setting</h3>
+  <div class="row">
+    <div>
+      <p>Normal models send short action chunks, so their speed is tied
+      to the inference rate. B-spline execution (BSP) turns each
+      prediction into a smooth curve that a 50 Hz loop follows by
+      clock time. Speed is then one setting.</p>
+      <ul>
+        <li>BSP models flip a bag in 14-18 s; the demos take about
+        25 s.</li>
+        <li>The first runs jerked at each new curve. A 0.2 s blend cut
+        direction reversals from 4.6 to 0.5 per second: less wear on
+        the servos and fewer shaken parcels.</li>
+      </ul>
+    </div>
+    <figure class="fig"><img src="assets/b_heap5_diffusion_bsp_flip.jpg"
+      alt="Diffusion-BSP flips the labelled orange box">
+      <figcaption>Diffusion-BSP flips the labelled box at
+      1.5&times; speed.</figcaption></figure>
+  </div>
+
+  <h3>Know the limits</h3>
+  <table>
+    <tr><th>Limit</th><th>Finding</th><th>Decision</th></tr>
+    <tr><td>Success at speed</td><td>Cube task: 3/3 at 1&times;, 2/4
+        at 2&times;</td><td class="impact">Run at 1.5&times; or
+        less</td></tr>
+    <tr><td>Planning time</td><td>A new curve must arrive before the
+        old one ends. SmolVLA plans in 0.22-0.3 s, so its limit is
+        1.8-3&times;</td><td class="impact">Faster planning raises the
+        safe speed</td></tr>
+    <tr><td>Servo lag</td><td>The arm lags its command by 13-30&deg;,
+        also at 1&times;</td><td class="impact">Higher speed means
+        harder contact when it goes wrong</td></tr>
+  </table>
+
+  <h3>Effect on the environment</h3>
+  <p>The robot runs showed failures that a success count hides, and
+  that matter on a real line:</p>
+  <table>
+    <tr><th>Seen on the robot</th><th>Risk on a line</th></tr>
+    <tr><td>SmolVLA-BSP pushed other parcels off the tray when it
+        pushed one</td><td class="bad">Parcels on the floor, jams</td></tr>
+    <tr><td>SmolVLA grasped two stacked boxes and pushed them off as
+        one, label up</td><td class="bad">Missorted parcels</td></tr>
+    <tr><td>Diffusion-BSP lifted a top box and the bottom box fell
+        onto the table</td><td class="bad">Dropped parcels, manual
+        recovery</td></tr>
+  </table>
+
+  <h3>Less compute for the same motion</h3>
+  <span class="req">Efficient</span>
+  <table>
+    <tr><th>Change</th><th>Result</th><th>Effect</th></tr>
+    <tr><td>Diffusion: TensorRT FP16</td><td>87.7 &rarr; 13.1 ms,
+        0.15&deg; error</td><td class="good">6.7&times; less GPU time
+        per plan</td></tr>
+    <tr><td>SmolVLA: static cache + <code>torch.compile</code></td>
+        <td>236 &rarr; 136 ms</td><td>1.7&times; faster, higher safe
+        speed</td></tr>
+    <tr><td>C++ 50 Hz control process</td><td>Longest tick 30.7
+        &rarr; 20.2 ms</td><td>No late ticks: steady motion when the
+        PC is busy</td></tr>
+    <tr><td>SmolVLA: TensorRT BF16</td><td>258 &rarr; 226 ms,
+        2.3&deg; error</td><td class="bad">Rejected: changes the
+        motion</td></tr>
+  </table>
+  <p>Every change was measured against one fixed reference, one change
+  at a time. A speed-up that changes the robot motion is not
+  shipped.</p>
+</section>
+
+<section id="skills">
+  <h2>Adding a new case without breaking the old ones
+    <span class="req">Maintainable</span>
+    <small>A new parcel type or heap shape will come. What does it cost
+    to add it?</small></h2>
+  <div class="row">
+    <div>
+      <p>The model failed on a box on a box and on parcels at the far
+      edge. I added 20 box-stack demos and 16 far-edge corrections
+      (<code>fb</code>), then 30 more corrections on stacks
+      (<code>fbs</code>, DAgger).</p>
+      <ul>
+        <li><b>fb</b> learned both cases and kept the old skill.</li>
+        <li><b>fbs</b> took stacks well (3/5, all middle stacks good),
+        but used the stack grasp on normal boxes and sorted only 2/5
+        of a normal heap.</li>
+      </ul>
+    </div>
+    <figure class="fig"><img src="assets/fbs_box_on_box.jpg"
+      alt="Top camera frames of the arm taking the top box off a stack">
+      <figcaption>fbs takes the top box off a stack in 22 s.
+      </figcaption></figure>
+  </div>
+  <table>
+    <tr><th>Part of the fbs training mix</th><th>Share of frames</th></tr>
+    <tr><td>Original demos (old skill)</td><td>58 %</td></tr>
+    <tr><td>Box-stack demos (repeated 3&times;)</td><td>33 %</td></tr>
+    <tr><td>Far-edge corrections</td><td>5 %</td></tr>
+    <tr><td>Stack corrections</td><td>4 %</td></tr>
+  </table>
+  <p>The new case had too much weight, and it got that weight twice
+  (fbs started from fb). A box on a box looks almost like a box next
+  to a box, and all data had the same task text, so the model could
+  not tell which skill to use.</p>
+  <div class="callout"><p><b>Impact:</b> each correction round costs
+  operator time and can break a skill that worked. Record one good
+  demo set for the new case, fine-tune once on a balanced mix, and
+  check the old cases before release.</p></div>
+
+  <h3>Next: a skill planner</h3>
+  <p>A small vision-language model looks at the cameras at home and
+  answers yes/no questions (box on a box? parcel at the far edge?).
+  Code applies a fixed priority and tells the policy which skill to
+  run, as in Hi Robot and &pi;0.5. Offline, on 120 labelled frames,
+  it picked the right skill 81 % of the time and found 23 of 25
+  stacks. The open risk is 12 false "stack" calls, the same failure
+  as fbs.</p>
+</section>
+
+<section id="lessons">
+  <h2>Lessons for deployment</h2>
+  <ul class="lessons">
+    <li><b>Fix the cell before the model.</b> A camera that hits the
+    table or a parcel out of reach is a hardware problem.</li>
+    <li><b>Know the robot's limits.</b> Reach, servo lag and planning
+    time set the safe speed and the tray size.</li>
+    <li><b>Pick models on the robot.</b> The offline best model was
+    not the best on the robot.</li>
+    <li><b>Speed is a trade-off.</b> 1.5&times; cuts cycle time;
+    2&times; fails more and hits harder.</li>
+    <li><b>Count side effects, not only success.</b> Pushed, dropped
+    and stacked parcels cost more than a slow cycle.</li>
+    <li><b>Add skills once, balanced.</b> Chained correction rounds
+    cost operator time and break old skills.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>Stack</h2>
+  <div class="tags">
+    <span class="tag">PyTorch</span><span class="tag">LeRobot</span>
+    <span class="tag">Hugging Face Hub</span>
+    <span class="tag">torch.compile / CUDA graphs</span>
+    <span class="tag">TensorRT</span><span class="tag">C++ (Feetech
+    bus, shared memory)</span><span class="tag">OpenCV / ArUco</span>
+    <span class="tag">SmolVLM2</span><span class="tag">ffmpeg</span>
+  </div>
+  <h3>References</h3>
+  <ol class="refs">
+    <li>Shukor et al., SmolVLA: A Vision-Language-Action Model for
+    Affordable and Efficient Robotics, 2025.</li>
+    <li>Chi et al., Diffusion Policy, RSS 2023.</li>
+    <li>B-spline Policy, b-spline-policy.github.io.</li>
+    <li>Ross et al., DAgger, AISTATS 2011.</li>
+    <li>Physical Intelligence, Hi Robot (2025) and &pi;0.5 (2025).</li>
+    <li>Cadene et al., LeRobot, github.com/huggingface/lerobot.</li>
+  </ol>
+</section>
+
+</div>
+<footer><div class="wrap">Zhen Ting Lee &middot; 2026 &middot;
+  <a href="https://github.com/">GitHub</a> &middot;
+  <a href="https://huggingface.co/Low101">Hugging Face</a>
+</div></footer>
+</body>
+</html>

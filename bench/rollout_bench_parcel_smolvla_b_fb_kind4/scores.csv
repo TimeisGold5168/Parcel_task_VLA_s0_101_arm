@@ -1,0 +1,11 @@
+episode,time_s,grip_cycles,home_s,parcels,cleared,wrong_label,help,cases,note
+0,128.8,5,51.4,4,2,0,2,,black bag + orange box off; operator moved the black box at 121.0 s and the white bag at 125.0 s; black box + white bag left; stopped
+1,238.5,15,32.8,4,3,0,4,,orange box + black box + black bag off; operator moved the orange box at 45.5 s; pushed the black box to the gripper at 108.0 s; moved the white bag at 212.5 and 220.0 s; white bag left at the time limit
+2,165.4,8,40.2,4,3,0,1,on_table,operator moved the black bag at 21.0 s; black bag dropped on the far corner of the table (out of reach); orange box + black box + white bag off
+3,154.3,7,54.0,4,4,0,4,,all off; operator moved the orange box at 38.0 and 62.0 s; turned the black box at 92.5 s; moved the white bag at 99.5 s
+4,144.7,8,55.6,4,4,0,1,,all off; operator moved the black box at 78.5 s
+5,141.1,7,57.4,4,1,0,5,,black bag off at 20 s; then grasp tries in the tray and waits at home; operator moved the orange box at 63.5 s and the white bag at 68.5 86.5 90.5 and 95.5 s; white bag + orange box + black box left; stopped
+6,0.9,0,0.4,4,,,,,stopped at 1 s (no run)
+7,1.0,0,0.3,4,,,,,stopped at 1 s (no run)
+8,0.9,0,0.5,4,,,,,stopped at 1 s (no run)
+9,0.7,0,0.0,4,,,,,stopped at 1 s (no run)

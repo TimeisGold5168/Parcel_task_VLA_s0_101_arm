@@ -1,0 +1,6 @@
+episode,time_s,grip_cycles,parcels,cleared,wrong_label,help,note
+0,108.5,7,3,3,0,1,heap3; about 45 s of grasp retries on the orange box; operator moved the box at 87 s
+1,172.9,13,4,3,0,1,heap4; operator moved an orange box at 154 s; one orange box left at the time limit
+2,136.8,4,3,3,0,0,box on box; still at home for 30 s; about 50 s of retries on the stack
+3,50.3,3,2,2,0,0,black box next to black bag; clean
+4,43.6,2,2,2,1,0,box alone on the table; 20 s over the empty tray; box pushed off label up with no flip
