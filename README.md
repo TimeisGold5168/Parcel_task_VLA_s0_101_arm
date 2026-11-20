@@ -391,8 +391,8 @@ datasets`, then `models`).
 | `smolvla_parcel_b_sk5d_10k` | 5 distinct skill texts |
 
 `backup_hf.sh` uploads the last checkpoint of each run. For
-`smolvla_parcel_b_fb_15k`, this is step 15000. The benchmark used
-step 10000.
+`smolvla_parcel_b_fb_15k`, it uploads step 10000, the checkpoint of
+the benchmark.
 
 The folder `models/` holds the four dataset A1 checkpoints in Git LFS:
 `diffusion_parcel_a1_80k`, `diffusion_bsp_parcel_40k`,

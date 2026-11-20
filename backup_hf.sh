@@ -26,10 +26,11 @@ DATASETS=(
   lerobot-so101-learning_20261015_201950
   lerobot-so101-learning_20261015_202357
 )
+# run[:checkpoint] (default: last). fb: the benchmark used step 10000.
 MODELS=(
   diffusion_bsp_parcel_b_40k smolvla_parcel_b_80k smolvla_bsp_parcel_b_40k
-  diffusion_parcel_b_80k smolvla_parcel_b_fb_15k smolvla_parcel_b_sk3d_10k
-  smolvla_parcel_b_sk5d_10k
+  diffusion_parcel_b_80k smolvla_parcel_b_fb_15k:010000
+  smolvla_parcel_b_sk3d_10k smolvla_parcel_b_sk5d_10k
 )
 
 failed=()
@@ -46,11 +47,14 @@ case "${1:-}" in
       fi
     done ;;
   models)
-    for m in "${MODELS[@]}"; do
-      src=$TRAIN/$m/checkpoints/last/pretrained_model
-      echo "== model $NS/$m"
+    for spec in "${MODELS[@]}"; do
+      m=${spec%%:*}
+      ck=last
+      [[ $spec == *:* ]] && ck=${spec#*:}
+      src=$TRAIN/$m/checkpoints/$ck/pretrained_model
+      echo "== model $NS/$m (checkpoint $ck)"
       "$HF" upload "$NS/$m" "$src" . --repo-type model --private \
-        --commit-message "Back up $m (last checkpoint)" || failed+=("$m")
+        --commit-message "Back up $m (checkpoint $ck)" || failed+=("$m")
     done ;;
   *)
     echo "usage: $0 datasets|models"; exit 2 ;;

@@ -229,9 +229,6 @@ CLIPS = {
         label="SmolVLA sk3d, skill text test C, ep0",
         skills=TEST_C_EP0),
     # Scene 9: limits.
-    "s9_grasp_gap_ep0": lambda: ds_still(
-        "s9_limits/grasp_gap_drive_ep0_10.4s.jpg", DRIVE, 0, 10.4,
-        "Gripper closes between black box and black bag, ep0"),
     "s9_grasp_gap_ep2": lambda: ds_still(
         "s9_limits/grasp_gap_drive_ep2_15.9s.jpg", DRIVE, 2, 15.9,
         "Gripper closes between black box and black bag, ep2"),

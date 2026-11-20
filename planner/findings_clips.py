@@ -6,8 +6,9 @@ Same format as the other page clips: top camera 636x360 (or its tray
 area, 504x360) next to the side or wrist camera 480x360, 30 fps,
 H.264, real time. Writes to site/videos:
   skill_switch_top_bag.mp4  Test C ep 0: top-box text (start text and
-                            key 3), then key 2 (bag text). The text in
-                            use is drawn on the clip
+                            key 3), then key 2 (bag text). The live
+                            skill and its task text are drawn on the
+                            clip
   grasp_gap.mp4             drive run ep 0: the gripper closes in the
                             gap between the black box and the black bag
 
@@ -18,6 +19,7 @@ earlier) then falls in the first top-box approach.
 """
 
 import subprocess
+import sys
 from pathlib import Path
 
 import pandas as pd
@@ -26,29 +28,32 @@ LOW = Path.home() / ".cache/huggingface/lerobot/Low101"
 SITE = Path(__file__).resolve().parents[1] / "site/videos"
 TRAY = "crop=448:320:0:0,scale=504:360"
 KEY2_S = 35.0
-TEXT_TOP = "key 3 - lift upper carton off stacked pile"
-TEXT_BAG = "key 2 - pinch soft bag by its edge then drop onto table"
+TEXTS = {"top": "lift upper carton off stacked pile",
+         "bag": "pinch soft bag by its edge then drop onto table"}
 # name: (dataset, episode, second camera, start s, end s, top camera
-#        filter, text overlays [(text, from s, to s)])
+#        filter, skill overlays [(skill, source, from s, to s)])
 CLIPS = {
     "skill_switch_top_bag": (
         "rollout_bench_parcel_smolvla_b_sk3d_skilltext_c", 0, "side",
         0.0, 46.0, "scale=636:360",
-        [(TEXT_TOP, 0.0, KEY2_S), (TEXT_BAG, KEY2_S, 46.0)]),
+        [("top", "at start", 0.0, KEY2_S),
+         ("bag", "human input", KEY2_S, 46.0)]),
     "grasp_gap": (
         "rollout_bench_parcel_smolvla_b_sk3d_planner_drive", 0, "wrist",
         6.0, 14.0, TRAY, []),
 }
 
 
-def overlay(texts, t0):
-    """drawtext filters: a bar at the top with the task text in use."""
+def overlay(skills, t0):
+    """drawtext filters: the live skill and its task text, bottom left."""
     out = []
-    for text, a, b in texts:
-        out.append(
-            f"drawtext=text='Task text\\: {text}':x=12:y=12:fontsize=22:"
-            "fontcolor=white:box=1:boxcolor=black@0.7:boxborderw=8:"
-            f"enable='between(t,{a - t0},{b - t0})'")
+    box = "box=1:boxcolor=black@0.6:boxborderw=8"
+    for skill, src, a, b in skills:
+        on = f"enable='between(t,{a - t0},{b - t0})'"
+        out.append(f"drawtext=text='skill\\: {skill}  ({src})':x=12:"
+                   f"y=h-80:fontsize=26:fontcolor=0xffc800:{box}:{on}")
+        out.append(f"drawtext=text='task text\\: {TEXTS[skill]}':x=12:"
+                   f"y=h-38:fontsize=18:fontcolor=white:{box}:{on}")
     return "".join("," + f for f in out)
 
 
@@ -85,10 +90,10 @@ def make(name, ds, ep, cam2, t0, t1, top, texts):
     print(out)
 
 
-def main():
-    for name, spec in CLIPS.items():
-        make(name, *spec)
+def main(names):
+    for name in names or CLIPS:
+        make(name, *CLIPS[name])
 
 
 if __name__ == "__main__":
-    main()
+    main(sys.argv[1:])
