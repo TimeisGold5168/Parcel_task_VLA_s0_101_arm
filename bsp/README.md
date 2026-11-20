@@ -164,11 +164,12 @@ Other settings:
 - Parcel task: warm start from `smolvla_parcel_a1_80k`, 20k steps,
   batch 12. The final loss is 0.131.
 
-Known issue: `train_bsp.py` builds the model from the config, so 146M
-VLM weights are float32 in place of bfloat16. Thus the checkpoint is
-1198 MB, not 907 MB. Training ran at 3.2 s per step, compared with
-1.2 s per step for `lerobot-train`. A possible fix for training: cast
-the VLM to bfloat16 after the warm start (not tested in training).
+Known issue (dataset A1 model): `train_bsp.py` built the model from the
+config, so 146M VLM weights are float32 in place of bfloat16. Thus the
+checkpoint is 1198 MB, not 907 MB. Training ran at 3.2 s per step,
+compared with 1.2 s per step for `lerobot-train`. Fixed for dataset B:
+`train_bsp.py` now casts the warm-start weights to the dtype of the
+`--init` checkpoint.
 At inference, `run_bsp_parcel.py` casts these weights to bfloat16:
 the plan time goes from about 350 ms to 209 ms, and the offline error
 does not change (2.93 deg).
@@ -364,4 +365,10 @@ the checkpoint (camera rename and tokenizer).
 | `run_bsp.py` | Robot executor, cube task (speed sweeps, debug logs) |
 | `diagnose_bsp.py` | Table of the debug logs for each episode |
 | `grid_executor.py` | Offline grid test of the executor settings |
+| `fast_denoise.py` | Compiled SmolVLA denoising step (static K/V cache) |
+| `trt_plan.py` | TensorRT engines for the BSP planners |
+| `cpp_control.py`, `ctl/` | C++ control process `bsp_ctl` and its Python side |
+| `bench_plan.py`, `bench_control.py` | Plan and control benchmarks |
+| `bench_summary.py`, `queue_bench.sh` | Benchmark queue and summary tables |
+| `video_record.py`, `compile_showcase.py` | Showcase videos |
 | `../parcel_task/run_bsp_parcel.py` | Executor for the parcel task (3 cameras) |

@@ -22,6 +22,8 @@ approach_demo/camera_layout_v2.png
 *.onnx
 *.onnx.data
 *.engine
+# figures that writeup.md and README.md show
+!parcel_task/figures/skill_text_findings.jpg
 bsp/engines/
 video/footage/
 parcel_task/debug_logs/*_img/

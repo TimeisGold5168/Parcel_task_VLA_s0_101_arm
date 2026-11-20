@@ -165,7 +165,7 @@ Findings:
 
 ## Robot evaluation
 
-Protocol: `test_protocol.md` (10 taped spots, 2 trials each, same home
+Protocol: `docs/test_protocol.md` (10 taped spots, 2 trials each, same home
 pose and layout for every model). Raw results: `results.csv`.
 
 | Model | Seen spots | New spots | Overall |
