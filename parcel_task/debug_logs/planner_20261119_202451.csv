@@ -1,9 +1,0 @@
-time,call,skill,p_bag,text_in_use,agree,gripper,ms,plan,image
-1795091136.725,plan,box,,bag,,1.3,37,box(black) box(black) box(orange) bag(white),1795091136.725_plan.jpg
-1795091138.264,verify,box,0.002,box,1,1.3,187,,1795091138.264_verify.jpg
-1795091139.335,verify,box,0.001,box,1,1.3,155,,1795091139.335_verify.jpg
-1795091140.405,verify,box,0.007,box,1,1.3,273,,1795091140.405_verify.jpg
-1795091141.476,verify,box,0.017,box,1,1.3,156,,1795091141.476_verify.jpg
-1795091142.548,verify,box,0.000,box,1,51.7,274,,1795091142.548_verify.jpg
-1795091143.619,verify,box,0.001,box,1,51.1,165,,1795091143.619_verify.jpg
-1795091174.427,grasp,,,box,,1.8,,,

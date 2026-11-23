@@ -2,7 +2,7 @@
 
 Goal: measure the three models trained on all 151 episodes on the
 same spots, before fine-tuning or DAgger. Results go in
-`results_spots.csv` (filled automatically, then checked).
+`runs/results_spots.csv` (filled automatically, then checked).
 
 Models (all trained on third-act-attempt, 151 episodes):
 - act151: ACT, act_all_ft50k checkpoint 050000 (with ensembling)
@@ -14,7 +14,7 @@ Models (all trained on third-act-attempt, 151 episodes):
 2. Align the front camera to episode 0 (pose A):
    ```bash
    cd ~/lerobot/lerobot
-   python outputs/portfolio/camera_align.py --device /dev/video6 \
+   python -m parcel_vla.setup.camera_align --device /dev/video6 \
      --ref-episode 0
    ```
    Adjust until the text is green, press `s` (snapshot), then `q`.
@@ -52,11 +52,11 @@ One command per spot runs every model in turn
 (act151 -> diffusion -> smolvla -> smolvla with distractor):
 ```bash
 cd ~/lerobot/lerobot
-bash outputs/portfolio/run_spot.sh SQ
+bash parcel_vla/cube_warmup/run_spot.sh SQ
 ```
 Before each model it waits for Enter (type `s` to skip a model).
-After each model it auto-scores the trials into `results_spots.csv`
-and saves a review sheet in `spot_review/`.
+After each model it auto-scores the trials into `runs/results_spots.csv`
+and saves a review sheet in `runs/spot_review/`.
 
 Important: when a model finishes, the arm's torque turns off and it
 goes limp. Hold or fold it to the home pose before pressing Enter;
@@ -65,13 +65,13 @@ trials.
 
 Phase 1 - camera at pose A (`--ref-episode 0`):
 ```bash
-bash outputs/portfolio/run_spot.sh SQ
-bash outputs/portfolio/run_spot.sh SQR
+bash parcel_vla/cube_warmup/run_spot.sh SQ
+bash parcel_vla/cube_warmup/run_spot.sh SQR
 ```
 Phase 2 - re-align camera to pose C (`--ref-episode 130`), lock it:
 ```bash
 for s in X1 X2 X3 X4 X5 UPL UPM UPR; do
-  bash outputs/portfolio/run_spot.sh $s
+  bash parcel_vla/cube_warmup/run_spot.sh $s
 done
 ```
 Save an alignment snapshot (`s`) at the start of each phase.
@@ -84,7 +84,7 @@ Wait until "Recording episode" before pressing a key.
 Time: about 1 min per trial incl. reset plus model loading
 -> about 2.5 h in total.
 
-## 3. Scoring (automatic, `review_rollouts.py`)
+## 3. Scoring (automatic, `parcel_vla/cube_warmup/review_rollouts.py`)
 - `stage_reached`: none / reach / grasp / lift / place
 - `task_success`: 1 if place, else 0. The gripper opens after the
   last hold and the cube is in the bin.

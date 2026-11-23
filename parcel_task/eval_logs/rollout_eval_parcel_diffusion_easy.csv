@@ -1,2 +1,0 @@
-time,model,checkpoint,settings,level,episodes,parcels,kind,where,label,note
-2026-11-03_18:54:16,diffusion,diffusion_parcel_a1_80k/last,DDIM 10 steps; 60 s,easy,0-1,2,black_parcel;yellow_box,near_flip,mixed,

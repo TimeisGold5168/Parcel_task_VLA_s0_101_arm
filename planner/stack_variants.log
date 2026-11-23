@@ -1,14 +1,0 @@
-== image tiles: False
-Loading weights:   0%|          | 0/657 [00:00<?, ?it/s]Loading weights:  12%|█▏        | 78/657 [00:00<00:00, 761.56it/s]Loading weights:  24%|██▍       | 158/657 [00:00<00:00, 771.84it/s]Loading weights:  59%|█████▉    | 386/657 [00:00<00:00, 1447.05it/s]Loading weights: 100%|██████████| 657/657 [00:00<00:00, 1779.29it/s]
-  top+side orig    AUC 0.74  thr 0.407 acc 86% stacks found 32% 0.31 s
-  side orig        AUC 0.71  thr 0.321 acc 82% stacks found 16% 0.16 s
-  side side        AUC 0.73  thr 0.119 acc 82% stacks found 12% 0.16 s
-  side count       AUC 0.53  thr 0.223 acc 80% stacks found 4% 0.17 s
-  top+side count   AUC 0.52  thr 0.378 acc 81% stacks found 8% 0.31 s
-== image tiles: True
-Loading weights:   0%|          | 0/657 [00:00<?, ?it/s]Loading weights:  11%|█         | 69/657 [00:00<00:00, 680.29it/s]Loading weights:  22%|██▏       | 142/657 [00:00<00:00, 703.35it/s]Loading weights:  35%|███▍      | 229/657 [00:00<00:00, 778.26it/s]Loading weights:  87%|████████▋ | 570/657 [00:00<00:00, 1811.67it/s]Loading weights: 100%|██████████| 657/657 [00:00<00:00, 1548.05it/s]
-  top+side orig    AUC 0.85  thr 0.245 acc 88% stacks found 60% 3.44 s
-  side orig        AUC 0.71  thr 0.349 acc 84% stacks found 32% 1.44 s
-  side side        AUC 0.81  thr 0.148 acc 86% stacks found 28% 1.40 s
-  side count       AUC 0.59  thr 0.202 acc 80% stacks found 24% 1.40 s
-  top+side count   AUC 0.74  thr 0.294 acc 82% stacks found 36% 3.39 s

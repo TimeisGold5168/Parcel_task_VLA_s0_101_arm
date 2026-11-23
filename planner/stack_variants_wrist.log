@@ -1,8 +1,0 @@
-== image tiles: False
-  top+side orig    AUC 0.74  thr 0.407 acc 86% stacks found 32% 0.35 s
-  wrist orig       AUC 0.72  thr 0.378 acc 87% stacks found 40% 0.15 s
-  top+side+wrist orig AUC 0.80  thr 0.438 acc 90% stacks found 64% 0.41 s
-== image tiles: True
-  top+side orig    AUC 0.85  thr 0.245 acc 88% stacks found 60% 3.38 s
-  wrist orig       AUC 0.86  thr 0.378 acc 88% stacks found 56% 1.07 s
-  top+side+wrist orig AUC 0.90  thr 0.469 acc 92% stacks found 60% 4.44 s

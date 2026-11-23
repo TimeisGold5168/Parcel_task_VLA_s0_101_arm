@@ -1,416 +1,715 @@
-# Parcel sorting with a LeRobot SO-101 arm: Diffusion Policy and SmolVLA
+# Parcel Sorting with a LeRobot SO-101 Arm: Diffusion Policy and SmolVLA
 
-This personal project teaches a low-cost SO-101 arm to sort parcels
-by imitation learning. The arm picks a parcel from a heap and places it
-in a flip zone. If the label is up, the arm flips the parcel. Then it
-pushes the parcel off the table, label down. The project compares
-Diffusion Policy and the SmolVLA vision-language-action (VLA) model. It
-adds B-spline execution (BSP), TensorRT FP16 and a C++ 50 Hz control
-loop. It also tests DAgger corrections, skill texts and a skill planner.
-All training runs on one laptop GPU with 6 GB of memory.
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-green.svg)](LICENSE)
+[![LeRobot](https://img.shields.io/badge/LeRobot-64b23178-orange.svg)](https://github.com/huggingface/lerobot)
+[![Hugging Face](https://img.shields.io/badge/%F0%9F%A4%97-Low101-yellow.svg)](https://huggingface.co/Low101)
+[![Project page](https://img.shields.io/badge/project%20page-timeisgold5168.github.io-teal.svg)](https://timeisgold5168.github.io/)
 
-![Diffusion-BSP B flips the labelled orange box][fig-flip]
+One low-cost SO-101 arm learns parcel sorting from my own
+demonstrations. The arm picks a parcel from a heap and places it in a
+flip zone. If the label is up, the arm flips the parcel. Then it pushes
+the parcel off the table, label down. I trained Diffusion Policy and
+the SmolVLA vision-language-action (VLA) model on one 6 GB laptop GPU.
+I tested each change on the real robot.
 
-[fig-flip]: parcel_task/figures/b_heap5_diffusion_bsp_flip.jpg
+> **Built on LeRobot.** This code extends the
+> [LeRobot](https://github.com/huggingface/lerobot) code of Hugging
+> Face, and it does not run without it. Install LeRobot at commit
+> `64b23178` with the patch in [`docs/patches/`](docs/patches) first.
+> See [Requirements](#requirements) and [Installation](#installation).
 
-The full technical record, with every test, number and limit, is
-[`writeup.md`](writeup.md). This page is a summary of it.
+[![The project in under 3 minutes](figures/overview_video.jpg)](https://timeisgold5168.github.io/)
 
-## Key results
+*Click the image for the project page: the project in under 3
+minutes, a video for each phase, and the
+[full 8-minute video](https://timeisgold5168.github.io/videos/portfolio_video.mp4).*
+
+---
+
+## Quick Results
 
 | Area | Result |
 |---|---|
-| 5-parcel heap, Diffusion-BSP B, 1.5x | 5/5 cleared (3/5 with no help) |
-| TensorRT FP16, Diffusion (robot) | plan mean 87 -> 18 ms |
-| TensorRT FP16, Diffusion (offline) | error 0.149 deg against PyTorch |
-| C++ control process (robot) | tick max 24.1 -> 20.4 ms |
-| Skill-text shift, one-word texts | 0.40 deg |
-| Skill-text shift, distinct texts | 3.41 deg |
-| Noise level, distinct-text model | 1.63 deg |
-| Benchmark, 1 kind, 3 parcels | 4/4 successes |
-| Benchmark, 1 kind, 4 parcels | 1/6 successes |
-| Benchmark, 4 kinds, 4 parcels | 0/6 successes |
+| One parcel cycle, skill text to home | **23.7 s** |
+| B-spline policy, cube task, time to home | **3× speed**: 4.5 s against 11.9 s |
+| Diffusion plan time on the robot, TensorRT FP16 | **87 → 18 ms**, error 0.15° |
+| SmolVLA plan time, compiled denoising | 258 → 148 ms |
+| Text shift, distinct texts / one-word texts | **3.41° / 0.40°** (noise 1.6°) |
+| 4-kind heap, skill texts by human input | **4/4 cleared**, no help (one run) |
+| 4-kind heap, one text for all skills | 0/6 successes |
 | Flip skill in the benchmark | 1 wrong label in 108 cleared parcels |
 
-Notes:
+---
 
-- The benchmark model is `smolvla_b_fb` 10k. A success is a heap with
-  all parcels cleared, 0 wrong labels and 0 help.
-- The skill-text shift is on the bag frames of the held-out episodes.
-  It is the change of the next 1 s of predicted arm actions when the
-  box text replaces the bag text.
-- The heap tests are one heap for each model. They give an indication,
-  not a controlled comparison.
+## Table of Contents
 
-Main findings:
+- [Task Description](#task-description)
+- [Hardware and Setup](#hardware-and-setup)
+- [Models](#models)
+- [The Project in 7 Phases](#the-project-in-7-phases)
+- [Diffusion Policy against SmolVLA](#diffusion-policy-against-smolvla)
+- [Problems Faced and Solutions](#problems-faced-and-solutions)
+- [Repository Layout](#repository-layout)
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [Record Your Own Demos](#record-your-own-demos)
+- [Train](#train)
+- [Download My Models](#download-my-models)
+- [Run on the Robot](#run-on-the-robot)
+- [Evaluate](#evaluate)
+- [Hugging Face Resources](#hugging-face-resources)
+- [Tools and Technologies](#tools-and-technologies)
+- [Limits and Next Steps](#limits-and-next-steps)
+- [References](#references)
+- [Acknowledgements and License](#acknowledgements-and-license)
 
-1. Diffusion-BSP gives the best results on the robot, but offline
-   scores ranked it last. Robot tests are necessary.
-2. Many DAgger corrections that start in the middle of the task stop
-   the start motion. Short fragments of one skill keep it.
-3. One VLA policy does not select the skill well in a heap with many
-   parcel kinds. A planner that sends a skill text is the next step.
-4. SmolVLA reads a task text only when the texts share no word.
+---
 
-## Hardware and setup
+## Task Description
+
+**Task:** pick one parcel from the heap, place it in the flip zone,
+flip it if the label is up, push it off the table label down, and go
+back home. One parcel is one episode.
+
+<p>
+  <img src="figures/self_made_parcels.jpeg" width="70%" alt="Four self-made parcel kinds with ArUco labels">
+  <img src="figures/parcel_preparations.jpeg" width="22%" alt="Materials for the parcels and the labels">
+</p>
+
+*Left: the four self-made parcel kinds. Right: the materials and the
+printed labels.*
+
+The task is not easy for a small arm and a small dataset:
+
+- **Four parcel kinds:** orange box, black box, black bag and white
+  bag. The black box and the black bag look alike.
+- **Two grasps:** the arm holds a box by its side walls and a bag by
+  its edge.
+- **Heaps:** parcels touch each other, sit at the far edge, or sit on
+  top of other parcels.
+- **Label side:** the arm must find the label side and flip only the
+  parcels with the label up.
+
+**Dataset B** (`parcel-sort-b`): 99 operator demos, 73,444 frames, 3
+cameras at 30 fps, 20 heaps, 61 episodes with a flip and 38 with no
+flip.
+
+**Scoring:** each shipping label has its own ArUco marker. After a
+run, OpenCV reads the marker: parcel ID, position, and label up or
+down. A script scores every benchmark run, so no person counts.
+
+---
+
+## Hardware and Setup
 
 | Item | Value |
 |---|---|
 | Arm | SO-101 follower (12 V, Feetech STS3215) |
-| Teleoperation | SO-101 leader (5 V) |
-| Top camera | RealSense colour, 848x480, 30 fps (`camera1`) |
-| Wrist camera | USB camera, 640x480, 30 fps (`camera2`) |
-| Side camera | USB camera, 640x480, 30 fps (`camera3`) |
+| Teleoperation | SO-101 leader (5 V), for demos and DAgger takeover |
+| Top camera | RealSense colour stream, YUYV, 848×480 at 30 fps (`camera1`) |
+| Wrist camera | USB camera, MJPG, 640×480 at 30 fps (`camera2`) |
+| Side camera | USB camera, MJPG, 640×480 at 30 fps (`camera3`) |
 | GPU | Laptop NVIDIA RTX PRO 500 Blackwell, 6 GB |
-| Parcels | Orange box, black box, black bag, white bag |
-| Labels | Shipping labels with a unique ArUco marker |
+| Parcels | 4 self-made kinds, labels with a unique ArUco marker |
 
 The names in brackets are the SmolVLA camera inputs. The same 6 GB GPU
-trains the models and runs the robot, but not at the same time.
+trains the models and runs the robot, one job at a time.
 
-## The project, phase by phase
+<p>
+  <img src="figures/camera_layout.png" width="72%" alt="Camera layout">
+  <img src="figures/wrist_camera_mount.jpeg" width="18%" alt="Wrist camera one joint back">
+</p>
 
-### 1. Cube warm-up (ACT, Diffusion, SmolVLA)
+*Left: the camera layout of the first parcel plan. Right: the wrist
+camera sits one joint back, so the 180° label flip does not hit the
+table.*
 
-The first task is "pick the green cube and place it into the bin". The
-first ACT model jerked at each chunk end, and the rollout start pose
-was outside the demos. A fixed layout, taped marks and one home pose
-fixed this. All 51 demos of `second-act-attempt` used one spot, so the
-policy failed at new spots. The 151 episodes of `third-act-attempt`
-spread the cube over five X marks, and the models then read the cube
-position.
+---
 
-### 2. Robustness tests
+## Models
 
-- Language: SmolVLA ignores the colour word. "green" and "red" move
-  the prediction no more than random noise.
-- Image changes: SmolVLA has the lowest error under every change.
-  Diffusion is the most sensitive to lighting.
-- Distractor: a blue cube on a trained spot pulls SmolVLA, not ACT or
-  Diffusion. SmolVLA picked 0/6 on a trained spot and 3/3 off it
-  (Fisher p = 0.012).
+### 1. Diffusion Policy [2]
 
-### 3. B-spline execution (BSP)
+```
+Input:     3 cameras (resized to 240x424) + 6 joint states
+Network:   ResNet18 encoders + 1D U-Net (256, 512, 1024): 89M parameters
+           (the default 278M did not fit 6 GB)
+Output:    64 actions (horizon), 2 observation steps
+Training:  from scratch, 80k steps, batch 16, AMP, 9.4 h
+Inference: DDIM 10 steps (B-spline version: 5)
+```
 
-Each BSP prediction is one B-spline segment: 16 knot times and 16
-control points for the 6 joints. A 50 Hz control thread samples the
-curve by the wall clock, so the speed does not depend on the inference
-rate. Diffusion-BSP jerked above 1x, because each plan starts from new
-random noise. The settings `--ddim-steps 5 --max-step 6 --blend 0.2`
-cut the direction reversals at 2x from 8.3 to 2.5 per second. Details:
-[`bsp/README.md`](bsp/README.md).
+### 2. SmolVLA [1]
 
-### 4. Parcel task, dataset A1 (push approach)
+```
+Base:      lerobot/smolvla_base (450M parameters)
+Trained:   the action expert only (100M); the vision encoder is frozen
+Input:     3 cameras (top, wrist, side -> camera1, camera2, camera3),
+           6 joint states and a task text
+Output:    50 actions per chunk, flow matching with 10 steps
+Training:  80k steps, batch 12, LR warmup 1000, cosine decay 80k, 27.4 h
+```
 
-Dataset A1 (`Low101/parcel-sort-a`) has 100 episodes and 101,642
-frames with 3 cameras. The operator pushes or pulls the parcel from
-the stack zone. On the easy level, Diffusion-BSP succeeded in all 5
-episodes. The push from the stack zone was the weak phase on the robot.
+### 3. B-spline Policy (BSP) [5]
 
-![Robot comparison on dataset A1](parcel_task/figures/robot_compare_frames.jpg)
+A normal policy predicts one joint target for each 30 fps frame. A
+B-spline policy predicts one smooth curve for the next 1.2-1.5 s: 16
+knot times and the control points of the 6 joints. A 50 Hz loop reads
+the curve by the clock. Thus the same curve plays at 1×, 2× or 3× with
+no new training. Each new curve starts at the point nearest to the
+last command, with a short blend. Details:
+[`parcel_vla/bsp/README.md`](parcel_vla/bsp/README.md).
 
-### 5. Faster inference
+| Run | Init | Steps | Batch | Time | Loss |
+|---|---|---|---|---|---|
+| `diffusion_parcel_b_80k` | scratch | 80k | 16 | 9.4 h | 0.005 |
+| `diffusion_bsp_parcel_b_40k` | Diffusion B | 40k | 16 | 5.1 h | 0.018 |
+| `smolvla_parcel_b_80k` | `smolvla_base` | 80k | 12 | 27.4 h | 0.025 |
+| `smolvla_bsp_parcel_b_40k` | SmolVLA B | 40k | 12 | 13.8 h | 0.100 |
+| `smolvla_parcel_b_fb_15k` (step 10k) | SmolVLA B | 15k | 12 | 5.2 h | 0.032 |
+| `smolvla_parcel_b_sk3d_10k` | SmolVLA B | 10k | 12 | 3.5 h | 0.034 |
+| `smolvla_parcel_b_sk5d_10k` | SmolVLA B | 10k | 12 | 3.4 h | 0.038 |
 
-- A compiled SmolVLA denoising step (`bsp/fast_denoise.py`) takes
-  3.1 ms, not 13.2 ms. The output stays within 0.106 deg of eager.
-- The LeRobot RTC engine plans while the arm moves. Three fixes
-  (`FREEZE=1`, `RTC_EXACT_DELAY=1`, `COMPILE=default`) make the chunk
-  switches smooth. Sync mode stops for 11.9% of the run. RTC with the
-  fixes stops for 0%.
+The loss shows that a run converged. It does not rank the models,
+because each policy has its own loss.
 
-### 6. Parcel task, dataset B (pick and place)
+---
 
-Dataset B (`Low101/parcel-sort-b`) has 99 episodes and 73,444 frames.
-The arm picks each parcel and places it in the flip zone. Results on
-the 5-parcel heap:
+## The Project in 7 Phases
 
-| Model | Cleared | Run time |
+Each phase starts from a problem of the phase before it. Every model
+change passed three gates, in this order: an offline test on held-out
+demos, a start test (does the arm still leave home?), and robot runs.
+
+### Phase 01: Setting up
+
+The task must be possible for the robot, and the result must be
+measurable. The 180° label flip made the wrist camera hit the table,
+so I moved the camera one joint back. A new base height gives an
+easier grasp on every parcel. Each setup fix took less time than more
+training.
+
+### Phase 02: Designing approaches, from push to pick and place
+
+The first design (dataset A1, 100 demos) pushed each parcel off the
+tray. Each demo pushed in a different way, so there was no single
+motion to copy. On the robot, the model needed 3 tries and 38 s for
+one bag. Dataset B has 99 new demos, each with one smooth place of
+2-2.5 s and one grasp for each parcel type.
+
+### Phase 03: Model comparison, Diffusion Policy against SmolVLA
+
+Both policies train on the same 99 demos and one task text.
+
+| Offline test, dataset B | T1 error ↓ | T2 flip /99 ↑ |
 |---|---|---|
-| Diffusion-BSP B, 1.5x | 5/5 (3/5 with no help) | 86 s |
-| SmolVLA-BSP B, 1.5x | 4/5 | 219 s |
-| SmolVLA B, RTC | 3/5 | 231 s (time limit) |
+| SmolVLA B | **1.91°** | 95 |
+| SmolVLA-BSP B | 2.39° | 93 |
+| Diffusion B | 2.02° | 95 |
+| Diffusion-BSP B | 3.08° | 91 |
 
-![Diffusion-BSP B, stack zone at the start and end of each episode][fig-zone]
+*T1: mean error of the 5 arm joints over the next 1 s (lower is
+better). T2: correct flip decisions (higher is better).*
 
-[fig-zone]: parcel_task/figures/b_heap5_diffusion_bsp_zone.jpg
+Offline, SmolVLA fits the demos best. On the robot, Diffusion-BSP
+needed the least help: on a 5-parcel heap at 1.5×, it cleared 5/5
+parcels in 86 s, 3 with no help. Lesson: the offline ranking is not
+the robot ranking.
 
-A box on a box fails with all models, because the data has only about
-5 such starts. On the 8-parcel heap, no model clears all parcels with
-no help. The models also use the bag push on the black box.
+![Diffusion-BSP flips the labelled orange box](figures/b_heap5_diffusion_bsp_flip.jpg)
 
-### 7. Diffusion against SmolVLA
+No heap above 3 parcels was cleared with no help. The pushes move
+other parcels to the far edge, where only 14 of the 99 demos reach.
+This is how I found the far-edge problem (phase 04).
 
-Diffusion-BSP B is the fastest and the best on the 5-parcel heap.
-SmolVLA is the smoothest model, and all its flips were correct. Its
-time loss is in the wait at home and the hover before the grasp. The
-DAgger and skill-text work uses SmolVLA B. Only SmolVLA reads a task
-text.
+Speed: a TensorRT FP16 export makes a Diffusion plan 4.8× faster on
+the robot (87 → 18 ms), and a C++ control loop holds each 20 ms tick
+within 0.4 ms. For SmolVLA, `torch.compile` cuts a denoising step from
+13.2 to 3.4 ms. Vision and language still take a fixed 94 ms in every
+plan. Details: [`results/inference_improvement/summary.md`](results/inference_improvement/summary.md).
 
-### 8. DAgger corrections, and why round 1 stalled
+### Phase 04: Fine-tuning, corrections one skill at a time
 
-In round 1, the operator recorded 83 corrections with the leader arm.
-They were about 45% of the merged frames. Both fine-tuned models then
-stayed at home. Each correction ended with about 1.4 s at home with no
-motion, and no correction had the start motion. A start test shows the
-cause:
+When the robot fails, I take over with the leader arm and record the
+fix (DAgger [6]).
 
-| Home-pose frame | Wrist roll turn |
-|---|---|
-| Old SmolVLA B | 32 deg |
-| Control, dataset B only (5k) | 27 deg |
-| DAgger, tails cut (5k) | 6.5 deg |
+| Round | Data | Result |
+|---|---|---|
+| All failures at once | 83 corrections, 45 % of the frames | The arm stays at home: wrist roll at start 32° → 3.7° |
+| Far edge | 16 short corrections, 7 % of the frames | Error 16.3° → 2.4°; the grasp works on the robot |
+| Stacked boxes | 20 full demos + 30 short corrections | Error 3.5° → 1.8°; 3 of 5 stacks cleared |
 
-Lesson: many corrections that start in the middle of the task pull the
-model away from the start motion.
+**Takeaway:** a correction fixes a skill that the model already has,
+for example the far-edge grasp. Stacked boxes were a new skill: only 5
+of the 99 demos start with a box on a box. A new skill needs full
+demos (about 20 good ones or more), not DAgger corrections.
 
-### 9. One skill at a time
+### Phase 05: Skill texts and the live planner
 
-Round 2 adds one skill at a time. The far-edge fragments are 7% of the
-mix, so the start motion stays (29.4 deg), and the far-edge grasp works
-on the robot. Round 3 adds stacked-parcel corrections on top, and the
-model tilts to the new grasp on normal boxes. Round 4 merges each part
-one time. `smolvla_b_all` 10k does each new case, but on normal heaps
-it does not select a skill firmly.
+With one task text for every parcel, SmolVLA ignores the text. A
+distinct text for each skill makes the text count.
 
-### 10. Benchmark
+| Texts | Example | Text shift | Verdict |
+|---|---|---|---|
+| Differ in one word | "pick the **box** and place it in the flip zone" | 0.40° (noise 1.62°) | ignored |
+| Distinct, no shared word | "grasp rigid box with wide grip and set it at flip zone", "pinch soft bag by its edge then drop onto table" | 3.41° (noise 1.63°) | read: the bag text wins 85 % of bag frames |
 
-The benchmark uses `smolvla_b_fb` 10k, with RTC. Each set has its own
-dataset (`eval_parcel.sh --set <name>`) and score sheet in `bench/`.
+![Touching parcels and the skill switch](figures/skill_text_findings.jpg)
 
-| Heap | Episodes | Success | Parcels cleared | Help |
-|---|---|---|---|---|
-| 1 kind, 2 parcels | 6 | 4 | 12/12 | 2 |
-| 1 kind, 3 parcels (pilot) | 4 | 4 | 12/12 | 0 |
-| 2 kinds, 3 parcels | 8 | 2 | 24/24 | 7 |
-| 3 kinds, 3 parcels | 10 | 5 | 25/30 | 4 |
-| 1 kind, 4 parcels | 6 | 1 | 18/23 | 5 |
-| 4 kinds, 4 parcels | 6 | 0 | 17/24 | 17 |
+A planner can send the skill text. At home, it predicts which parcel
+the policy takes next (SmolVLM2-500M probe, or colour regions in the
+top view). On the way, a wrist probe checks it (99 % correct, 1 s
+before the grasp). The planner runs next to SmolVLA on the same GPU
+(1.9 GB at peak). With so little data, it is not reliable yet.
 
-The number of parcel kinds and the number of parcels both have an
-effect. The large step is from 1 kind to a mixed heap.
+### Phase 06: Benchmarks
 
-### 11. Skill texts and the skill planner
+Success means all parcels cleared, 0 wrong labels and no help.
 
-All datasets had one task text, so SmolVLA ignored the text. The
-skill-text models give each skill its own text:
+| Heap | One text for all skills | Skill texts by human input |
+|---|---|---|
+| 1 kind, 3 parcels | 4/4 | - |
+| 1 kind, 4 parcels | 1/6 | - |
+| 4 kinds, 4 parcels | 0/6 | **4/4 parcels in 113 s, no help** (one run) |
 
-| Skill | Text (`sk3d`, `sk5d`) |
-|---|---|
-| Box | "grasp rigid box with wide grip and set it at flip zone" |
-| Bag | "pinch soft bag by its edge then drop onto table" |
-| Top box | "lift upper carton off stacked pile" |
+With one text, the model cannot select the skill in a mixed heap. The
+top-box skill does not pass yet: on stacked boxes, the top-box text
+wins only 41 % of the frames (pass: 80 %). SmolVLA does not see the
+stack well, so the vision is the problem, not the text.
 
-- SmolVLA ignores texts that differ in one word ("box", "bag").
-- Texts with no shared word change the grasp. On the robot, key 3
-  (top-box text) and then key 2 (bag text) give the correct skill for
-  each parcel.
-- The image selects the target, and the text selects the grasp.
-- `sk5d` keeps 5 texts, but the 2 new skills (13 and 16 episodes) do
-  not learn. A skill needs approximately 20 good episodes or more.
+### Phase 07: Limits and next steps
 
-![Touching parcels and the skill switch][fig-skill]
+See [Limits and Next Steps](#limits-and-next-steps).
 
-[fig-skill]: parcel_task/figures/skill_text_findings.jpg
+---
 
-The planner (`planner/`) selects the skill text. A linear probe on
-SmolVLM2-2.2B features selects the correct skill in 81% of the home
-frames. A wrist probe on SmolVLM2-500M finds box or bag in 99% of the
-frames, 1 s before the grasp. A black box that touches a black bag
-looks like one parcel to the planner and to the policy.
+## Diffusion Policy against SmolVLA
 
-### 12. Performance engineering
+| Aspect | Diffusion Policy | SmolVLA |
+|---|---|---|
+| Parameters trained | 89M of 89M | 100M of 450M (action expert) |
+| Vision | trained end to end | pretrained, frozen |
+| Training on dataset B | 9.4 h | 27.4 h |
+| Offline error (T1) | 2.02° | **1.91°** |
+| Plan time on the robot | 87 ms, **18 ms** with TensorRT | 258 ms, 148 ms compiled |
+| 5-parcel heap, BSP at 1.5× | **5/5 in 86 s** (3 with no help) | 4/5 in 219 s |
+| Reads a task text | no | **yes**, with distinct texts |
 
-Every change is measured against one fixed reference. Details:
-[`bsp/bench_results/summary.md`](bsp/bench_results/summary.md).
+Diffusion-BSP is the fastest model on the robot. The later phases use
+SmolVLA, because only SmolVLA reads a text. This makes skill texts and
+a planner possible.
 
-| Change | Result |
-|---|---|
-| Diffusion, TensorRT FP16 | plan p50 87.7 -> 13.1 ms (offline) |
-| SmolVLA, TensorRT BF16 | no gain, error 2.330 deg, not used |
-| C++ control process | all ticks within 0.4 ms of 20 ms |
-| C++ servo driver, sync read | bus max 5.5 -> 1.4 ms |
+---
 
-Faster plans remove the holds, but direction reversals and success do
-not change. The seam jump comes from the difference between plans.
+## Problems Faced and Solutions
 
-### 13. Limits and next steps
+| # | Problem | Effect | Solution |
+|---|---|---|---|
+| 1 | ACT runs its 100-step chunk blind (cube task) | Jumps up to 69.9° at frames 100, 200, 300 | Temporal ensembling: max jump 3.1° |
+| 2 | Start pose outside the demos; layout changed in every demo (cube task) | The policy ignores the cameras | Fixed home pose, tape marks, new demos |
+| 3 | `prepare_observation_for_inference` converts images to float on the CPU | Control loop at 10-15 Hz | `fast_prepare`: uint8 to the GPU first, about 25 Hz |
+| 4 | Rerun `rr.log` blocks; mpv reads the terminal keys | Loop at 5 Hz, keys do not work | Rerun off, mpv preview thread, global key listener |
+| 5 | Diffusion uses DDPM with 100 steps | 0.8 s per plan | DDIM 10 steps: 0.1 s |
+| 6 | Each B-spline plan starts from new noise | Jerks above 1× speed | `--blend 0.2 --ddim-steps 5 --max-step 6`: reversals 8.4 → 1.2 /s at 1.5× |
+| 7 | `torch.compile` and the dynamic KV cache | Recompiles, then a corrupt cache | `StaticPrefixCache`: step 13.2 → 3.4 ms, max difference 0.106° |
+| 8 | Three bugs in the RTC engine [7] | Pauses and jumps at chunk switches | `FREEZE=1 RTC_EXACT_DELAY=1 COMPILE=default`: pauses 11.9 % → 0 % |
+| 9 | LR schedule decays over fewer steps than the run | 50k steps at the minimum LR | `--policy.scheduler_decay_steps` equal to the steps |
+| 10 | Warm-start weights not cast to the init type | SmolVLA-BSP plan 325 ms | Cast to bf16: 223 ms |
+| 11 | 83 DAgger corrections start in the middle of the task | The arm stays at home | One skill at a time, short corrections, 7 % share |
+| 12 | Box data 33 % of the frames, fine-tuned twice | Stack grasp on normal boxes | One fine-tune on a balanced mix; skill texts |
+| 13 | SmolVLM2 splits each image into many tiles | Planner: 17 s per decision | `do_image_splitting=False`: 1.5 s |
 
-Limits:
+The full list, with the symptom, the cause and the test of each fix,
+is the "bugs.log" panel of the
+[project page](https://timeisgold5168.github.io/) (Engineering
+view). The full technical record is [`docs/writeup.md`](docs/writeup.md).
 
-- Most robot tests have few trials and one heap for each model.
-- One operator labelled the planner frames and rated the runs.
-- The far edge, the black box and a box on a box stay weak.
+---
 
-Next steps:
-
-1. Record 20-25 new box-stack demos of good quality.
-2. Use these demos as the box-stack skill, with a skill text.
-3. Add a better parcel detection to the planner, for example a
-   detector or a depth camera.
-4. Record the same scene with two texts and two targets.
-
-## Repository layout
+## Repository Layout
 
 ```text
 .
-├── README.md           This page
-├── writeup.md          Full technical record
-├── backup_hf.sh        Back up datasets and models to the Hub
-├── parcel_task/        Parcel task: record, train, evaluate, run
-│   └── figures/        Figures of the write-up
-├── bsp/                B-spline policy: targets, training, executor
-│   ├── ctl/            C++ 50 Hz control process (bsp_ctl)
-│   └── bench_results/  Plan and control benchmark results
-├── planner/            Skill planner: VLM probes, top view, live planner
-├── bench/              Benchmark score sheets (scores.csv for each set)
-├── parcel_labels/      ArUco shipping labels and camera tests
-├── patches/            Patch for the LeRobot source
-├── models/             Dataset A1 checkpoints (Git LFS)
-├── baseline_pre10/     Code, packages and commit before items 10-12
-├── docs/               Cube-task test protocols and plans
-├── site/               Portfolio web page
-├── video/              Tools for the portfolio video
-├── approach_demo/      Camera layout of the parcel task
-├── camcheck/           Camera alignment logs (cube task)
-├── image_perturbations/  Images of the robustness test (cube task)
-├── spot_review/        Spot-test review data (cube task)
-├── wrtie_up_materials/ Photos for the write-up
-└── *.py, *.sh, *.csv   Cube-task tools and results
+├── README.md
+├── pyproject.toml           pip install -e .
+├── parcel_vla/              the code, one folder for each part
+│   ├── env.sh, paths.py     shared settings: devices, folders, namespace
+│   ├── setup/               camera alignment, wrist focus guide, ArUco labels
+│   ├── data/                recording with 3 cameras, heap schedules, checks
+│   ├── training/            SmolVLA and Diffusion training
+│   ├── bsp/                 B-spline policy: targets, training, decoding
+│   ├── inference_improvement/  compiled denoising, TensorRT, C++ 50 Hz loop
+│   ├── robot/               robot runs: skill keys, live planner, BSP executor
+│   ├── evaluation/          offline tests (no robot)
+│   ├── finetuning/          DAgger corrections, start test, checkpoint pick
+│   ├── skill_texts/         skill-text datasets, language test, text splits
+│   ├── planner/             VLM probes, top-view regions, live planner
+│   ├── benchmark/           benchmark runs and score sheets
+│   └── cube_warmup/         the first task (green cube)
+├── results/                 the results that the project page shows
+├── figures/                 the images of this README and the write-up
+└── docs/                    write-up, test protocols, LeRobot patch
 ```
 
-Cube-task tools at the repository root:
+| Folder | Phase | Main files |
+|---|---|---|
+| [`setup/`](parcel_vla/setup) | 01 | `camera_align.py`, `focus_guide.py`, `labels/make_labels.py` |
+| [`data/`](parcel_vla/data) | 02 | `record_parcel.sh`, `check_episodes.py`, `schedule_B.csv` |
+| [`training/`](parcel_vla/training) | 03 | `train_smolvla.sh`, `train_diffusion.sh`, `train_mixed.py` |
+| [`bsp/`](parcel_vla/bsp) | 03 | `make_targets.py`, `train_bsp.py`, `train_bsp_parcel.sh` |
+| [`inference_improvement/`](parcel_vla/inference_improvement) | 03 | `fast_denoise.py`, `trt_plan.py`, `cpp_control.py`, `ctl/` |
+| [`evaluation/`](parcel_vla/evaluation) | 03 | `offline_eval_b.py` |
+| [`robot/`](parcel_vla/robot) | 03-06 | `run_parcel.sh`, `rollout_mixed.py`, `run_bsp_parcel.py` |
+| [`finetuning/`](parcel_vla/finetuning) | 04 | `dagger_parcel.sh`, `trim_corrections.py`, `start_test.py` |
+| [`skill_texts/`](parcel_vla/skill_texts) | 05 | `make_skill3.py`, `lang_test.py`, `splits/` |
+| [`planner/`](parcel_vla/planner) | 05 | `live_planner.py`, `topview.py`, `train_planner.py` |
+| [`benchmark/`](parcel_vla/benchmark) | 06 | `eval_parcel.sh`, `bench_sheets.py` |
+| [`cube_warmup/`](parcel_vla/cube_warmup) | before 01 | `run_spot.sh`, `review_rollouts.py` |
 
-| File | Purpose |
-|---|---|
-| `run_robot_test.sh` | Robot test of one cube model |
-| `run_spot.sh` | One test spot for every model, then auto-score |
-| `run_configs.sh` | Inference-config comparison on one spot |
-| `review_rollouts.py` | Auto-score spot-test rollouts |
-| `vlm_frames.py` | Frame grids for a vision-model judge |
-| `camera_align.py` | Live front-camera alignment to an episode |
-| `focus_guide.py` | Live focus guide for the wrist camera |
-| `delete_last_episode.sh` | Delete the last episodes of a rollout |
-| `upload_for_colab.sh` | Upload the data for the Colab fine-tune |
-| `results*.csv` | Cube-task robot results |
+Each folder has a README with its files and commands. Your new runs,
+logs and result tables go to `runs/`, and checkpoints go to
+`outputs/train/`. Git ignores both folders.
 
-## How to reproduce
+---
 
-### Set up
+## Requirements
 
-1. Clone LeRobot: `git clone https://github.com/huggingface/lerobot`.
-2. Check out the base commit: `git -C lerobot checkout 64b23178`.
+To use this code as it is, you need the same kind of setup:
+
+- **LeRobot (required):** this code is built on the
+  [LeRobot repository](https://github.com/huggingface/lerobot), and it
+  does not run without it. Use commit `64b23178` with the patch in
+  [`docs/patches/`](docs/patches). The code uses LeRobot in three ways:
+  - It imports the LeRobot policies (Diffusion Policy, SmolVLA, ACT),
+    the datasets, and the robot and camera drivers.
+  - It runs the LeRobot commands `lerobot-train`, `lerobot-record` and
+    `lerobot-rollout`, with extra settings.
+  - It changes some LeRobot functions at run time: the Diffusion camera
+    resize, the image prepare step, the SmolVLA denoising cache and the
+    RTC engine. These changes expect the code of commit `64b23178`.
+    Another LeRobot version can break them.
+- **Robot:** an SO-101 follower arm. For demos and corrections, also
+  an SO-101 leader arm.
+- **Three fixed cameras** with these names. The models expect them:
+
+  | Name | Place | Format |
+  |---|---|---|
+  | `top` | above the tray | 848×480, 30 fps (I used a RealSense colour stream) |
+  | `wrist` | on the gripper, one joint back | 640×480, 30 fps |
+  | `side` | beside the table | 640×480, 30 fps |
+
+- **GPU:** an NVIDIA GPU with 6 GB of memory or more. Run one job at a
+  time.
+- **Software:** Linux, Python 3.10 or later, SciPy, and `v4l-utils`
+  (it finds the RealSense colour node).
+- **Optional:** TensorRT and `onnxruntime` (Diffusion FP16 engines),
+  `g++` and `make` (C++ control loop), `reportlab` (label PDFs),
+  `python3-tk` (camera alignment tools).
+- **Scene:** a tray for the heap, a flip zone and a table edge. For
+  script scoring, print the labels in
+  [`parcel_vla/setup/labels/`](parcel_vla/setup/labels).
+
+CAUTION: The record and run scripts move the arm. Before you start a
+script, put the arm at the home pose and clear the workspace.
+
+---
+
+## Installation
+
+Install LeRobot first, then this package in the same Python
+environment.
+
+1. Clone LeRobot:
+   `git clone https://github.com/huggingface/lerobot && cd lerobot`.
+2. Check out the base commit: `git checkout 64b23178`.
 3. Install LeRobot: `pip install -e ".[feetech,smolvla,diffusion]"`.
-4. Clone this repository into `lerobot/outputs/portfolio`.
-5. Go to the LeRobot root: `cd lerobot`.
+4. Install SciPy for the B-spline code: `pip install scipy`.
+5. Clone this repository:
+   `git clone https://github.com/TimeisGold5168/Parcel_task_VLA_s0_101_arm.git`.
 6. Apply the patch:
-   `git apply outputs/portfolio/patches/lerobot_episodic_skip_empty.patch`.
-7. Run `git lfs install`, then `git -C outputs/portfolio lfs pull`.
+   `git apply Parcel_task_VLA_s0_101_arm/docs/patches/lerobot_episodic_skip_empty.patch`.
+7. Install this package without dependencies:
+   `pip install -e Parcel_task_VLA_s0_101_arm --no-deps`.
+8. Log in to Hugging Face: `hf auth login`.
+9. Set your devices and your Hugging Face name. Use the
+   `/dev/serial/by-id` and `/dev/v4l/by-id` names, because they do
+   not change after a reboot:
 
-Run all commands from the LeRobot root. Some scripts set `PY`, `BIN`
-or `TRAIN` to `/home/zhenting.lee/miniforge3/envs/lerobot/bin`. If
-your path is different, change these lines. The record and run
-scripts find the arms and cameras by their `/dev/serial/by-id` and
-`/dev/v4l/by-id` names. Change these names to your devices.
+   ```bash
+   export FOLLOWER_PORT=/dev/serial/by-id/<your follower arm>
+   export LEADER_PORT=/dev/serial/by-id/<your leader arm>
+   export WRIST_CAM=/dev/v4l/by-id/<your wrist camera>
+   export SIDE_CAM=/dev/v4l/by-id/<your side camera>
+   export TOP_CAM=/dev/video<N>   # empty: find the RealSense colour node
+   export HF_USER=<your Hugging Face name>
+   ```
 
-### Record
+Run the commands below from one folder, for example the LeRobot root.
+Checkpoints go to `outputs/train/` in that folder. To use another
+folder, set `TRAIN_DIR`. All settings are in
+[`parcel_vla/env.sh`](parcel_vla/env.sh) and
+[`parcel_vla/paths.py`](parcel_vla/paths.py).
+
+---
+
+## Record Your Own Demos
+
+1. Put the arm at the home pose, and build heap 1 of the schedule.
+2. Record the heap with the leader arm:
+
+   ```bash
+   STAGE=b REPO=$HF_USER/parcel-sort-b bash parcel_vla/data/record_parcel.sh 1
+   ```
+
+3. In each episode, push Space when the parcel is released label down
+   in the flip zone.
+4. Do the next heaps with `record_parcel.sh 2`, `3`, and so on.
+5. Check the episodes:
+   `python -m parcel_vla.data.check_episodes --root ~/.cache/huggingface/lerobot/$HF_USER/parcel-sort-b`.
+
+Use one smooth motion for each parcel type, and one firm close of the
+gripper. Consistent demos work better than more demos: dataset B has
+fewer frames than dataset A1 and works.
+
+---
+
+## Train
+
+### A. With the scripts of this repository
+
+The defaults reproduce my dataset B models. Set `DATASET` and `RUN`
+for your own data.
+
+```bash
+# SmolVLA: 80k steps, batch 12 (about 27 h on a 6 GB laptop GPU)
+DATASET=$HF_USER/parcel-sort-b RUN=smolvla_parcel_b_80k \
+  bash parcel_vla/training/train_smolvla.sh
+
+# Diffusion Policy: 80k steps, batch 16, AMP (about 9 h)
+DATASET=$HF_USER/parcel-sort-b RUN=diffusion_parcel_b_80k \
+  bash parcel_vla/training/train_diffusion.sh
+
+# B-spline versions: make the targets once, then warm start
+python -m parcel_vla.bsp.make_targets --dataset parcel-sort-b --max-error 0.5
+bash parcel_vla/bsp/train_bsp_parcel.sh smolvla
+bash parcel_vla/bsp/train_bsp_parcel.sh diffusion
+
+# Resume a stopped run
+RESUME=1 RUN=smolvla_parcel_b_80k bash parcel_vla/training/train_smolvla.sh
+```
+
+For DAgger rounds and skill texts, see
+[`parcel_vla/finetuning/`](parcel_vla/finetuning) and
+[`parcel_vla/skill_texts/`](parcel_vla/skill_texts).
+
+### B. With the LeRobot command line only
+
+SmolVLA needs the camera rename map. Its three pretrained camera inputs
+are `camera1`, `camera2` and `camera3`:
+
+```bash
+lerobot-train \
+  --policy.path=lerobot/smolvla_base \
+  --dataset.repo_id=$HF_USER/parcel-sort-b \
+  --rename_map='{"observation.images.top": "observation.images.camera1",
+                 "observation.images.wrist": "observation.images.camera2",
+                 "observation.images.side": "observation.images.camera3"}' \
+  --policy.scheduler_warmup_steps=1000 --policy.scheduler_decay_steps=80000 \
+  --batch_size=12 --steps=80000 --save_freq=10000 \
+  --policy.push_to_hub=false --output_dir=outputs/train/smolvla_parcel_b_80k
+```
+
+Diffusion Policy stacks the camera images before it resizes them. If
+your cameras have different sizes, plain `lerobot-train` stops with a
+shape error. Then use `python -m parcel_vla.training.train_mixed` with
+the same arguments as `lerobot-train`, or record all three cameras at
+the same size.
+
+---
+
+## Download My Models
+
+NOTE: These models learned my scene: my tray, my camera poses, my
+lighting and my self-made parcels. On another setup they will likely
+not work as they are. Use them to test the code, or as a start point
+to fine-tune on your own demos.
+
+| Hub model | Policy | Model name in the scripts |
+|---|---|---|
+| [`Low101/diffusion_parcel_b_80k`](https://huggingface.co/Low101/diffusion_parcel_b_80k) | Diffusion, dataset B | `diffusion_b` |
+| [`Low101/diffusion_bsp_parcel_b_40k`](https://huggingface.co/Low101/diffusion_bsp_parcel_b_40k) | Diffusion-BSP, dataset B | `diffusion_bsp_b` |
+| [`Low101/smolvla_parcel_b_80k`](https://huggingface.co/Low101/smolvla_parcel_b_80k) | SmolVLA, dataset B | `smolvla_b` |
+| [`Low101/smolvla_bsp_parcel_b_40k`](https://huggingface.co/Low101/smolvla_bsp_parcel_b_40k) | SmolVLA-BSP, dataset B | `smolvla_bsp_b` |
+| [`Low101/smolvla_parcel_b_fb_15k`](https://huggingface.co/Low101/smolvla_parcel_b_fb_15k) | Far edge + box stack, step 10000 (benchmark model) | `smolvla_b_fb` |
+| [`Low101/smolvla_parcel_b_sk3d_10k`](https://huggingface.co/Low101/smolvla_parcel_b_sk3d_10k) | 3 distinct skill texts | `smolvla_b_sk3d` |
+| [`Low101/smolvla_parcel_b_sk5d_10k`](https://huggingface.co/Low101/smolvla_parcel_b_sk5d_10k) | 5 distinct skill texts | `smolvla_b_sk5d` |
+
+Download a model into the checkpoint layout of the scripts. Then the
+commands of the next section find it by its model name:
+
+```bash
+M=smolvla_parcel_b_sk3d_10k
+hf download Low101/$M --local-dir outputs/train/$M/checkpoints/last/pretrained_model
+```
+
+---
+
+## Run on the Robot
 
 1. Put the arm at the home pose.
-2. Record one heap of the dataset B schedule:
-   `STAGE=b bash outputs/portfolio/parcel_task/record_parcel.sh 1`.
-3. Push Space after the release, before the exit push.
-4. Check the episodes with `parcel_task/check_episodes.py`.
+2. Build the heap.
+3. Start the policy. Use one of the commands below.
+4. Push the Right arrow to end an episode, or Esc to stop.
 
-### Train
+```bash
+# SmolVLA with skill texts: keys 1/2/3 send the box, bag or top-box text
+SKILL=bag bash parcel_vla/robot/run_parcel.sh smolvla_b_sk3d
 
-1. Make the B-spline targets:
-   `python outputs/portfolio/bsp/make_targets.py --dataset parcel-sort-b
-   --max-error 0.5`.
-2. Train the four dataset B models in a queue (about 56 h):
-   `bash outputs/portfolio/parcel_task/queue_b.sh`.
-3. Train one BSP model by hand with `bsp/train_bsp.py`. The usage is
-   in the file header.
-4. Make the skill texts:
-   `python outputs/portfolio/parcel_task/make_skill3.py --variant
-   distinct`.
-5. Train the skill-text model:
-   `VARIANT=distinct bash outputs/portfolio/parcel_task/queue_skill3.sh`.
+# The same, with the live planner sending the skill (not reliable yet)
+SKILL=bag PLANNER=drive bash parcel_vla/robot/run_parcel.sh smolvla_b_sk3d
 
-### Evaluate
+# SmolVLA with RTC and the three fixes (the benchmark settings)
+FREEZE=1 RTC_EXACT_DELAY=1 COMPILE=default ROLLOUT_ARGS="--inference.type=rtc \
+  --inference.rtc.execution_horizon=10 --inference.queue_threshold=30" \
+  bash parcel_vla/robot/run_parcel.sh smolvla_b
 
-1. Run the offline tests:
-   `python outputs/portfolio/parcel_task/offline_eval_b.py`.
-2. Put the arm at the home pose, and build the heap.
-3. Run the robot test:
-   `bash outputs/portfolio/parcel_task/eval_parcel.sh diffusion_bsp_b
-   --level hard --episodes 5 --speed 1.5 --blend 0.2`.
-4. For a benchmark set, add `--set <name>` (for example `kind2`).
-5. Make the score sheets:
-   `python outputs/portfolio/parcel_task/bench_sheets.py
-   rollout_bench_parcel_smolvla_b_fb_kind2`.
-6. Fill in `bench/<dataset>/scores.csv`.
+# Diffusion-BSP at 1.5x with the smooth settings
+python -m parcel_vla.robot.run_bsp_parcel --model diffusion_bsp_b --level easy \
+  --speed 1.5 --ddim-steps 5 --blend 0.2 --max-step 6
 
-The full benchmark command, with the RTC flags, is in
-[`writeup.md`](writeup.md), section "Portfolio benchmark".
-For TensorRT, build the engines with
-`bsp/trt_plan.py build <model> --dtype fp16`, then add `--trt fp16`.
-For C++ control, run `make -C outputs/portfolio/bsp/ctl`, then add
+# Any checkpoint folder, with the settings of a model name
+POLICY_PATH=/path/to/pretrained_model SKILL=box \
+  bash parcel_vla/robot/run_parcel.sh smolvla_b_sk3d
+python -m parcel_vla.robot.run_bsp_parcel --model smolvla_bsp_b --level easy \
+  --policy-path /path/to/pretrained_model
+```
+
+For the skill-text models, the texts come from
+[`parcel_vla/skill_texts/splits/`](parcel_vla/skill_texts/splits). For
+TensorRT, build the engines first with
+`python -m parcel_vla.inference_improvement.trt_plan build diffusion_bsp_b --dtype fp16`,
+then add `--trt fp16`. For the C++ control loop, run
+`make -C parcel_vla/inference_improvement/ctl`, then add
 `--control cpp`.
 
-## Datasets and models
+---
 
-The datasets and models are on the Hugging Face Hub in the namespace
-`Low101`. They are private, and the upload is not complete.
-`backup_hf.sh` uploads them (`bash outputs/portfolio/backup_hf.sh
-datasets`, then `models`).
+## Evaluate
 
-| Dataset | Content |
+```bash
+# Offline tests on dataset B (no robot): action error, flip decision, image swap
+python -m parcel_vla.evaluation.offline_eval_b
+
+# Language test of a skill-text model (held-out frames)
+python -m parcel_vla.skill_texts.lang_test smolvla_parcel_b_sk3d_10k:010000 \
+  --split outputs/train/skill3d_split.json
+
+# One benchmark set on the robot, then the score sheets
+bash parcel_vla/benchmark/eval_parcel.sh smolvla_b_fb --set kind2 \
+  --level medium --episodes 5 --parcels 3
+python -m parcel_vla.benchmark.bench_sheets rollout_bench_parcel_smolvla_b_fb_kind2
+```
+
+The score sheets go to `runs/bench/`. My scores are in
+[`results/benchmark/`](results/benchmark). The results index is
+[`results/README.md`](results/README.md).
+
+---
+
+## Hugging Face Resources
+
+- **Profile:** [huggingface.co/Low101](https://huggingface.co/Low101)
+- **Models:** the 7 models in [Download My Models](#download-my-models).
+- **Datasets:** `parcel-sort-a` (A1, push, 100 episodes),
+  `parcel-sort-b` (B, pick and place, 99 episodes) and the
+  correction and skill-text sets. The datasets are private.
+- **LeRobot:** [github.com/huggingface/lerobot](https://github.com/huggingface/lerobot)
+
+---
+
+## Tools and Technologies
+
+| Category | Tools |
 |---|---|
-| `parcel-sort-a` | Dataset A1, push approach, 100 episodes |
-| `parcel-sort-b` | Dataset B, pick and place, 99 episodes |
-| `parcel-sort-b-fb` | Dataset B + far edge + box-stack demos |
-| `parcel-sort-b-all` | Round 4 balanced mix of all skills |
-| `parcel-sort-b-sk3` | 3 skill texts that differ in one word |
-| `parcel-sort-b-sk3d` | 3 skill texts with no shared word |
-| `parcel-sort-b-sk5d` | 5 skill texts with no shared word |
-| `parcel-skill-boxstack` | Box-on-box demos, as recorded |
-| `parcel-skill-boxstack-cut` | 20 box-on-box demos, start wait cut |
-| `parcel-approach-demo` | First approach demo: reach, then pull |
-| `second-act-attempt` | Cube task, 51 episodes |
-| `third-act-attempt` | Cube task, 151 episodes |
-| `lerobot-so101-first-act_20261015_205345` | Cube task, first dataset |
-| `lerobot-so101-learning_20261015_*` | Cube task, 3 early sets |
+| ML framework | PyTorch, Hugging Face Transformers |
+| Robot learning | LeRobot [4], commit `64b23178` (required) |
+| Policies | Diffusion Policy [2], SmolVLA [1], ACT [3] (cube task) |
+| Action representation | B-spline Policy [5] |
+| Planner | SmolVLM2-500M and 2.2B, linear probes, OpenCV colour regions |
+| Inference speed | `torch.compile`, TensorRT FP16, C++ control process, RTC [7] |
+| Scoring | OpenCV ArUco markers |
+| Model hosting | Hugging Face Hub |
+| Hardware | SO-101 leader and follower (Feetech STS3215), RealSense, 2 USB cameras, laptop RTX PRO 500 Blackwell (6 GB) |
 
-| Model | Policy |
-|---|---|
-| `diffusion_parcel_b_80k` | Diffusion, dataset B |
-| `diffusion_bsp_parcel_b_40k` | Diffusion-BSP, dataset B |
-| `smolvla_parcel_b_80k` | SmolVLA, dataset B (`smolvla_b`) |
-| `smolvla_bsp_parcel_b_40k` | SmolVLA-BSP, dataset B |
-| `smolvla_parcel_b_fb_15k` | Far edge + box stack (`smolvla_b_fb`) |
-| `smolvla_parcel_b_sk3d_10k` | 3 distinct skill texts |
-| `smolvla_parcel_b_sk5d_10k` | 5 distinct skill texts |
+---
 
-`backup_hf.sh` uploads the last checkpoint of each run. For
-`smolvla_parcel_b_fb_15k`, it uploads step 10000, the checkpoint of
-the benchmark.
+## Limits and Next Steps
 
-The folder `models/` holds the four dataset A1 checkpoints in Git LFS:
-`diffusion_parcel_a1_80k`, `diffusion_bsp_parcel_40k`,
-`smolvla_parcel_a1_80k` and `smolvla_bsp_parcel_20k`. Each folder is a
-LeRobot `pretrained_model` folder. The BSP folders also have
-`bsp.json`. Without Git LFS, the `model.safetensors` files are small
-text pointers.
+| Area | Limit | Fix to try next |
+|---|---|---|
+| Vision | Touching dark parcels look like one region. | Use a better camera. Add a segmentation planner that splits touching parcels. |
+| Stacks | SmolVLA does not see a stacked box well: the top-box skill fails. | Record 20-25 more box-stack demos, and let the planner find the stack and send the top-box text. |
+| Consistency | On boxes, the gripper opens and closes many times before it holds. | My demos had this hesitant grip adjustment, and the model copied it. Record more consistent demos with one firm close. |
+| Compute | A SmolVLA plan takes 148 ms, even compiled (6 GB laptop GPU). | More GPU compute and memory bandwidth make it faster. More memory only fits a larger planner. |
 
-## Documents
+Also, most robot tests have few trials and one heap for each model.
+They give an indication, not a controlled comparison.
 
-| Document | Content |
-|---|---|
-| [`writeup.md`](writeup.md) | Full technical record: cube and parcel task |
-| [`bsp/README.md`](bsp/README.md) | How each policy predicts B-splines |
-| [`docs/README.md`](docs/README.md) | Cube-task test protocols and plans |
-| [`bench/README.md`](bench/README.md) | Benchmark sets and score columns |
+---
 
-## License
+## References
 
-Apache-2.0. See [`LICENSE`](LICENSE). `bsp/bspline.py` follows the
-official B-spline Policy code (MIT licence).
+[1] Shukor et al., "SmolVLA: A Vision-Language-Action Model for
+Affordable and Efficient Robotics," arXiv:2506.01844, 2025.
+
+[2] Chi et al., "Diffusion Policy: Visuomotor Policy Learning via
+Action Diffusion," RSS 2023.
+
+[3] Zhao et al., "Learning Fine-Grained Bimanual Manipulation with
+Low-Cost Hardware," RSS 2023.
+
+[4] Cadene et al., "LeRobot: State-of-the-art Machine Learning for
+Real-World Robotics in PyTorch," github.com/huggingface/lerobot, 2024.
+
+[5] Han et al., "B-spline Policy: Accelerating Manipulation Policies
+via B-spline Action Representations,"
+[arXiv:2607.09648](https://arxiv.org/abs/2607.09648), 2026.
+
+[6] Ross, Gordon and Bagnell, "A Reduction of Imitation Learning and
+Structured Prediction to No-Regret Online Learning," AISTATS 2011.
+
+[7] Black, Galliker and Levine, "Real-Time Execution of Action
+Chunking Flow Policies," arXiv:2506.07339, 2025.
+
+[8] Physical Intelligence, "π0: A Vision-Language-Action Flow Model for
+General Robot Control," [arXiv:2410.24164](https://arxiv.org/abs/2410.24164), 2024.
+
+[9] Physical Intelligence, "π0.5: a Vision-Language-Action Model with
+Open-World Generalization," [arXiv:2504.16054](https://arxiv.org/abs/2504.16054), 2025.
+
+[10] Shi et al., "Hi Robot: Open-Ended Instruction Following with
+Hierarchical Vision-Language-Action Models,"
+[arXiv:2502.19417](https://arxiv.org/abs/2502.19417), 2025.
+
+---
+
+## Contact
+
+**Zhen Ting Lee**
+
+- GitHub: [@TimeisGold5168](https://github.com/TimeisGold5168)
+- Hugging Face: [@Low101](https://huggingface.co/Low101)
+- Portfolio: [timeisgold5168.github.io](https://timeisgold5168.github.io/)
+
+---
+
+## Acknowledgements and License
+
+This project builds on [LeRobot](https://github.com/huggingface/lerobot)
+by Hugging Face (Apache 2.0). Some functions adapt LeRobot code, and
+[`docs/patches/`](docs/patches) holds one change to the LeRobot source.
+`parcel_vla/bsp/bspline.py` follows the official B-spline Policy code
+(MIT License).
+
+This repository: Apache 2.0 License. See [`LICENSE`](LICENSE).

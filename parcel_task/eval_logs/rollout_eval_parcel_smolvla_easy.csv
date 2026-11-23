@@ -1,3 +1,0 @@
-time,model,checkpoint,settings,level,episodes,parcels,kind,where,label,note
-2026-11-03_16:37:16,smolvla,smolvla_parcel_a1_20k/last,smooth 7,easy,0-0,1,black_box,near_flip,down,
-2026-11-03_16:41:04,smolvla,smolvla_parcel_a1_20k/last,smooth 7,easy,1-2,2,black_parcel;yellow_box,near_flip,mixed,

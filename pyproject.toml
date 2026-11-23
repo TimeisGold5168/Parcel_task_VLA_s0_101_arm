@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "parcel-vla"
+version = "1.0.0"
+description = "Parcel sorting with a LeRobot SO-101 arm: Diffusion Policy, SmolVLA, B-spline execution, skill texts and a skill planner"
+readme = "README.md"
+license = { text = "Apache-2.0" }
+requires-python = ">=3.10"
+# Required: LeRobot, a clone at commit 64b23178 with the patch in
+# docs/patches (see README). It gives torch, the policies and the robot
+# drivers. Install this package with --no-deps, so that pip keeps your
+# LeRobot clone.
+dependencies = ["lerobot", "scipy"]
+
+[project.urls]
+LeRobot = "https://github.com/huggingface/lerobot"
+"Project page" = "https://timeisgold5168.github.io/"
+
+[tool.setuptools.packages.find]
+include = ["parcel_vla*"]
+
+[tool.setuptools.package-data]
+"*" = ["*.csv", "*.json", "*.sh", "*.pdf", "*.cpp", "*.h", "Makefile"]

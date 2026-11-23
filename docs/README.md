@@ -1,27 +1,23 @@
-# Documents: cube task
+# docs
 
-This folder holds the test protocols and plans of the cube task. The
-cube task is the warm-up before the parcel task. The results are in
-[`../writeup.md`](../writeup.md), and the CSV files are at the
-repository root.
+| Document | Content |
+|---|---|
+| [`writeup.md`](writeup.md) | The full technical record: cube task and parcel task, every test, number and limit |
+| [`test_protocol.md`](test_protocol.md) | Cube task: the robot test protocol, 10 taped spots with 2 trials each |
+| [`spot_test_plan.md`](spot_test_plan.md) | Cube task: the spot test of the 151-episode models |
+| [`patches/`](patches) | The change to the LeRobot source (base commit `64b23178`) |
+| [`baseline_pre10/`](baseline_pre10) | Code, packages, GPU and commit before the speed items 10-12: the fixed reference of the benchmarks |
 
-- [`test_protocol.md`](test_protocol.md): the robot test protocol,
-  10 taped spots with 2 trials each.
-- [`spot_test_plan.md`](spot_test_plan.md): the spot test of the
-  151-episode models.
-- [`robot_tests_language_robustness.md`](robot_tests_language_robustness.md):
-  the language and robustness tests on the robot.
+The write-up keeps the file names of the time of each test. The
+[main README](../README.md#repository-layout) shows the new place of
+each script. Raw logs and some early result tables are not in this
+repository.
 
-Result files at the repository root:
+The cube results that the project page shows are in
+[`results/cube_warmup/`](../results/cube_warmup):
 
 | File | Content |
 |---|---|
-| `results.csv` | Robot results of `test_protocol.md` |
-| `results_spots.csv` | Spot-test results |
-| `results_language_robustness.csv` | Language and robustness tests |
-| `results_configs.csv` | Inference-config comparison |
+| `results_spots.csv` | Spot-test results, with the distractor test |
 | `results_act_ensemble.csv` | ACT runs with temporal ensembling |
 | `results_bsp.csv` | ACT-BSP and Diffusion-BSP speed runs |
-
-The commands in these documents start from the LeRobot root, for
-example `bash outputs/portfolio/run_spot.sh SQ`.
